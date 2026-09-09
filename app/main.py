@@ -7,6 +7,8 @@ from app.routers import (auth, content, marketplace, metrics_commercial, metrics
                          metrics_roles, moderation, ops, support)
 from app.routers import system as system_router
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(
     title="AgeCare Admin API",
     version="1.0.0",
@@ -14,6 +16,19 @@ app = FastAPI(
     docs_url="/api/v1/admin/docs",
     openapi_url="/api/v1/admin/openapi.json",
 )
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://agecare-web.vercel.app/",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.add_middleware(RequestIdMiddleware)
 register_error_handlers(app)
 
