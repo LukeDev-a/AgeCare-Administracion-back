@@ -357,3 +357,26 @@ class LegalVersion(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
                                                  onupdate=func.now())
     __table_args__ = (UniqueConstraint("doc_type", "semver"),)
+
+from sqlalchemy import Column, String, Boolean, Text, DateTime, Integer, func
+
+class GameApp(Base):
+    __tablename__ = "games_apps"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    slug = Column(String(100), unique=True, index=True, nullable=False)
+    title = Column(String(150), nullable=False)
+    description = Column(Text, nullable=True)
+    item_type = Column(String(20), nullable=False, default="game")  # 'game' o 'app'
+    category = Column(String(80), nullable=False)
+    
+    icon_url = Column(String(500), nullable=True)
+    banner_url = Column(String(500), nullable=True)
+    target_url = Column(String(500), nullable=True)
+    
+    is_active = Column(Boolean, default=True, nullable=False)
+    min_tier = Column(String(50), default="gratuito", nullable=False)
+    featured = Column(Boolean, default=False, nullable=False)
+
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now(), nullable=False)
