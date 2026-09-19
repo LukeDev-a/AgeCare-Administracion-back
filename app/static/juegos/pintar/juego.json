@@ -1,0 +1,7 @@
+{
+  "id": "pintar",
+  "nombre": "Pintar",
+  "icono": "palette",
+  "entrada": "index.html",
+  "descripcion_corta": "Elige un color y toca el dibujo para pintarlo"
+}

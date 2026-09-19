@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pintar</title>
+<link rel="stylesheet" href="../compartido/css/accesibilidad.css">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<h1 class="titulo-juego">Pintar</h1>
+
+<p class="instruccion">Elige un color y toca el dibujo para pintarlo</p>
+
+<div id="paleta" class="paleta" role="group" aria-label="Colores disponibles"></div>
+
+<div id="dibujo" class="dibujo-contenedor"></div>
+
+<div class="controles">
+  <button class="boton-grande" id="btn-limpiar">Nuevo dibujo</button>
+</div>
+
+<script src="disenos/disenos.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

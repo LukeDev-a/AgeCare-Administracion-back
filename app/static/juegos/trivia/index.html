@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trivia nostálgica</title>
+<link rel="stylesheet" href="../compartido/css/accesibilidad.css">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<h1 class="titulo-juego">Trivia nostálgica</h1>
+
+<p class="contador">Pregunta <span id="numero-actual"></span> de <span id="numero-total"></span></p>
+
+<div class="tarjeta-pregunta">
+  <p id="texto-pregunta" class="texto-pregunta"></p>
+  <div id="opciones" class="opciones"></div>
+</div>
+
+<div id="siguiente-contenedor" class="controles" hidden>
+  <button class="boton-grande" id="btn-siguiente">Siguiente pregunta</button>
+</div>
+
+<div id="celebracion" class="mensaje-exito" hidden>
+  ¡Terminaste la trivia! Gracias por jugar
+</div>
+
+<div class="controles">
+  <button class="boton-grande" id="btn-reiniciar">Jugar otra vez</button>
+</div>
+
+<script src="preguntas.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

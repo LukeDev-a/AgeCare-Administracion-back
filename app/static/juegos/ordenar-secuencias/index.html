@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ordenar secuencias</title>
+<link rel="stylesheet" href="../compartido/css/accesibilidad.css">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<h1 class="titulo-juego">Ordenar secuencias</h1>
+
+<p id="nombre-secuencia" class="nombre-secuencia"></p>
+<p class="instruccion">Toca dos pasos para intercambiarlos, hasta dejarlos en orden</p>
+
+<div id="pasos" class="pasos" role="group" aria-label="Pasos de la actividad"></div>
+
+<div id="celebracion" class="mensaje-exito" hidden>
+  ¡Perfecto! Los pasos quedaron en el orden correcto
+</div>
+
+<div class="controles">
+  <button class="boton-grande" id="btn-reiniciar">Otra secuencia</button>
+</div>
+
+<script src="secuencias.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "id": "trivia",
+  "nombre": "Trivia nostálgica",
+  "icono": "bulb",
+  "entrada": "index.html",
+  "descripcion_corta": "Preguntas sencillas sobre recuerdos de otras épocas"
+}

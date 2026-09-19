@@ -359,10 +359,88 @@ async def seed() -> None:
                                 created_by=admin.id, created_by_name=admin.full_name),
         ])
 
+        # ---- Juegos y apps ----
+
+        import os
+        # Buscamos la variable de entorno; si no existe, usamos localhost por defecto
+        DOMINIO_API = os.getenv("BASE_URL_JUEGOS", "http://localhost:8000")
+
+        # Armamos la ruta final hacia la carpeta estática
+        BASE_URL_JUEGOS = f"{DOMINIO_API}"
+        
+
+
+
+
+        ACCESIBILIDAD_COMUN = {
+            "gesto_unico": True,
+            "sin_temporizador": True,
+            "sin_penalizacion": True,
+            "audio": True,
+            "offline": True,
+        }
+        JUEGOS = [
+            {"slug": "rompecabezas", "title": "Rompecabezas", "category": "Percepción",
+             "description": "Arma la imagen tocando dos piezas para intercambiarlas.",
+             "sort_order": 10, "is_active": True, "featured": False},
+            {"slug": "memorama", "title": "Memorama", "category": "Memoria",
+             "description": "Encuentra las parejas de cartas iguales. Tres temas rotativos.",
+             "sort_order": 20, "is_active": True, "featured": True},
+            {"slug": "diferencias", "title": "Buscar diferencias", "category": "Atención",
+             "description": "Encuentra los detalles que cambian entre las dos escenas.",
+             "sort_order": 30, "is_active": False, "featured": False},
+            {"slug": "pintar", "title": "Pintar", "category": "Bienestar",
+             "description": "Elige un color y toca el dibujo para pintarlo. Cuatro diseños.",
+             "sort_order": 40, "is_active": True, "featured": True},
+            {"slug": "trivia", "title": "Trivia nostálgica", "category": "Memoria",
+             "description": "Preguntas sencillas sobre recuerdos de otras épocas.",
+             "sort_order": 50, "is_active": False, "featured": False},
+            {"slug": "bingo", "title": "Bingo", "category": "Atención",
+             "description": "Marca en tu cartón los números que se van cantando en voz alta.",
+             "sort_order": 60, "is_active": True, "featured": False},
+            {"slug": "sonido-imagen", "title": "Emparejar sonido e imagen", "category": "Atención",
+             "description": "Escucha el sonido y toca la imagen que corresponde.",
+             "sort_order": 70, "is_active": False, "featured": False},
+            {"slug": "jardin", "title": "Mi jardín", "category": "Bienestar",
+             "description": "Riega tu planta y obsérvala crecer, sin apuro y sin errores posibles.",
+             "sort_order": 80, "is_active": True, "featured": False},
+            {"slug": "sopa-letras", "title": "Sopa de letras", "category": "Lenguaje",
+             "description": "Encuentra las palabras tocando su primera y su última letra.",
+             "sort_order": 90, "is_active": False, "featured": False},
+            {"slug": "ordenar-secuencias", "title": "Ordenar secuencias", "category": "Lógica",
+             "description": "Ordena los pasos de una actividad tocando dos para intercambiarlos.",
+             "sort_order": 100, "is_active": False, "featured": False},
+        ]
+        
+        for datos in JUEGOS:
+            # 1. Buscamos si el juego ya existe en la base de datos consultando por su slug
+            juego_existente = (await db.execute(
+                select(models.GameApp).where(models.GameApp.slug == datos['slug'])
+            )).scalars().first()
+
+            if juego_existente:
+                # 2. Si ya existe, NO hacemos db.add(), solo actualizamos sus valores 
+                # (especialmente tus nuevas URLs de las imágenes)
+                juego_existente.target_url = f"{BASE_URL_JUEGOS}/static/juegos/{datos['slug']}/index.html"
+                juego_existente.preview_image_url = f"{BASE_URL_JUEGOS}/static/juegos/{datos['slug']}/preview.png"
+                juego_existente.title = datos['title']
+                juego_existente.is_active = datos['is_active']
+                juego_existente.accessibility = ACCESIBILIDAD_COMUN
+            else:
+                # 3. Si NO existe, entonces sí lo insertamos como nuevo
+                db.add(models.GameApp(
+                    **datos,
+                    item_type="game",
+                    min_tier="gratuito",
+                    target_url=f"{BASE_URL_JUEGOS}/static/juegos/{datos['slug']}/index.html",
+                    preview_image_url=f"{BASE_URL_JUEGOS}/static/juegos/{datos['slug']}/preview.png",
+                    accessibility=ACCESIBILIDAD_COMUN,
+                    updated_by=admin.id,
+                    updated_by_name=admin.full_name,
+                ))
+
         await db.commit()
-        total_tickets = (await db.execute(select(models.Ticket))).scalars().all()
-        print(f"Seed completado: {len(admins)} cuentas de staff, {len(total_tickets)} tickets, "
-              f"{len(FEATURES)} funcionalidades, métricas de 14 meses.")
+
 
 
 if __name__ == "__main__":

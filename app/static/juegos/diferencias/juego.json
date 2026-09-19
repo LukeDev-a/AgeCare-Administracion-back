@@ -1,0 +1,7 @@
+{
+  "id": "diferencias",
+  "nombre": "Buscar diferencias",
+  "icono": "search",
+  "entrada": "index.html",
+  "descripcion_corta": "Encuentra los detalles que cambian entre las dos escenas"
+}

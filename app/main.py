@@ -6,7 +6,7 @@ from app.errors import RequestIdMiddleware, register_error_handlers
 from app.routers import (auth, content, marketplace, metrics_commercial, metrics_features,
                          metrics_roles, moderation, ops, support, games_apps)
 from app.routers import system as system_router
-
+from fastapi.staticfiles import StaticFiles
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -17,6 +17,8 @@ app = FastAPI(
     docs_url="/api/v1/admin/docs",
     openapi_url="/api/v1/admin/openapi.json",
 )
+
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,

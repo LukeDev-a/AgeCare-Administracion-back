@@ -1,0 +1,7 @@
+{
+  "id": "sonido-imagen",
+  "nombre": "Emparejar sonido e imagen",
+  "icono": "volume",
+  "entrada": "index.html",
+  "descripcion_corta": "Escucha el sonido y toca la imagen que corresponde"
+}

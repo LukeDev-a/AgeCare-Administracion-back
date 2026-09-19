@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bingo</title>
+<link rel="stylesheet" href="../compartido/css/accesibilidad.css">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<h1 class="titulo-juego">Bingo</h1>
+
+<p class="instruccion">Toca "Cantar número" y luego búscalo en tu cartón</p>
+
+<div class="numero-cantado-contenedor">
+  <p class="numero-cantado-etiqueta">Número cantado</p>
+  <p id="numero-cantado" class="numero-cantado">—</p>
+</div>
+
+<div class="controles">
+  <button class="boton-grande" id="btn-cantar">Cantar número</button>
+</div>
+
+<div id="carton" class="carton" role="group" aria-label="Tu cartón de bingo"></div>
+
+<div id="celebracion" class="mensaje-exito" hidden>
+  ¡Bingo! Completaste todo tu cartón
+</div>
+
+<div class="controles">
+  <button class="boton-grande" id="btn-reiniciar">Cartón nuevo</button>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sopa de letras</title>
+<link rel="stylesheet" href="../compartido/css/accesibilidad.css">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<h1 class="titulo-juego">Sopa de letras</h1>
+
+<p class="instruccion">Toca la primera letra de una palabra y luego la última</p>
+
+<div id="grilla" class="grilla" role="group" aria-label="Grilla de letras"></div>
+
+<div id="lista-palabras" class="lista-palabras"></div>
+
+<div id="celebracion" class="mensaje-exito" hidden>
+  ¡Felicidades! Encontraste todas las palabras
+</div>
+
+<div class="controles">
+  <button class="boton-grande" id="btn-reiniciar">Empezar de nuevo</button>
+</div>
+
+<script src="conjuntos.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

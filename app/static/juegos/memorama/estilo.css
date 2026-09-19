@@ -1,0 +1,55 @@
+.instruccion {
+  text-align: center;
+  font-size: 20px;
+  color: var(--color-texto);
+  margin-bottom: 20px;
+}
+
+.tablero {
+  display: grid;
+  grid-template-columns: repeat(4, 90px);
+  grid-template-rows: repeat(3, 90px);
+  gap: 10px;
+  justify-content: center;
+  margin: 0 auto 24px;
+}
+
+.carta {
+  width: 90px;
+  height: 90px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  background: var(--color-acento);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: transform 0.15s ease;
+}
+
+.carta svg {
+  width: 100%;
+  height: 100%;
+}
+
+.carta.tapada {
+  background: var(--color-acento);
+}
+
+.carta.volteada,
+.carta.encontrada {
+  background: white;
+  border: 2px solid var(--color-acento-suave);
+}
+
+.carta.encontrada {
+  border: 2px solid var(--color-exito);
+  opacity: 0.75;
+  cursor: default;
+}
+
+.controles {
+  display: flex;
+  justify-content: center;
+}

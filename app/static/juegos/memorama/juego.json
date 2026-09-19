@@ -1,0 +1,7 @@
+{
+  "id": "memorama",
+  "nombre": "Memorama",
+  "icono": "cards",
+  "entrada": "index.html",
+  "descripcion_corta": "Encuentra las parejas de cartas iguales"
+}

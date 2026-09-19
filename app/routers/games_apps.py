@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
+from uuid import UUID
 
 from app.database import get_db
 from app.deps import get_current_admin
@@ -26,6 +27,21 @@ async def list_games_apps(
     result = await db.execute(stmt.order_by(GameApp.created_at.desc()))
     return result.scalars().all()
 
+# --- NUEVA RUTA PARA SOLUCIONAR EL ERROR 405 ---
+@router.get("/active", response_model=List[GameAppOut])
+async def list_active_games_apps(
+    db: AsyncSession = Depends(get_db),
+    item_type: Optional[str] = Query(None),
+    #current_admin = Depends(get_current_admin)
+):
+    stmt = select(GameApp).where(GameApp.is_active == True)
+    if item_type:
+        stmt = stmt.where(GameApp.item_type == item_type)
+    
+    result = await db.execute(stmt.order_by(GameApp.created_at.desc()))
+    return result.scalars().all()
+# -----------------------------------------------
+
 @router.post("/", response_model=GameAppOut, status_code=status.HTTP_201_CREATED)
 async def create_game_app(
     payload: GameAppCreate,
@@ -48,7 +64,7 @@ async def create_game_app(
 
 @router.put("/{item_id}", response_model=GameAppOut)
 async def update_game_app(
-    item_id: int,
+    item_id: UUID,  # <-- CAMBIADO DE int A UUID
     payload: GameAppUpdate,
     db: AsyncSession = Depends(get_db),
     current_admin = Depends(get_current_admin)
@@ -66,7 +82,7 @@ async def update_game_app(
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_game_app(
-    item_id: int,
+    item_id: UUID,  # <-- CAMBIADO DE int A UUID
     db: AsyncSession = Depends(get_db),
     current_admin = Depends(get_current_admin)
 ):

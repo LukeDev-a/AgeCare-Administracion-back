@@ -1,0 +1,74 @@
+.nombre-secuencia {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-acento);
+  margin-bottom: 6px;
+}
+
+.instruccion {
+  text-align: center;
+  font-size: 18px;
+  margin-bottom: 20px;
+}
+
+.pasos {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 480px;
+  margin: 0 auto 24px;
+}
+
+.paso-tarjeta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+  padding: 10px 18px;
+  border-radius: var(--radio-borde);
+  border: 3px solid var(--color-acento-suave);
+  background: white;
+  cursor: pointer;
+  text-align: left;
+}
+
+.paso-numero {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-acento-suave);
+  color: var(--color-acento);
+  font-weight: 700;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.paso-texto {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--color-texto);
+}
+
+.paso-tarjeta.seleccionada {
+  border-color: #EF9F27;
+  background: #FDF3E3;
+}
+
+.paso-tarjeta.correcta {
+  border-color: var(--color-exito);
+  background: var(--color-exito-suave);
+}
+
+.paso-tarjeta.correcta .paso-numero {
+  background: var(--color-exito);
+  color: white;
+}
+
+.controles {
+  display: flex;
+  justify-content: center;
+}
