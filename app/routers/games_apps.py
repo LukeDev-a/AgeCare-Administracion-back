@@ -16,7 +16,7 @@ async def list_games_apps(
     db: AsyncSession = Depends(get_db),
     item_type: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
-    current_admin = Depends(get_current_admin)
+    #current_admin = Depends(get_current_admin)
 ):
     stmt = select(GameApp)
     if item_type:
@@ -46,7 +46,7 @@ async def list_active_games_apps(
 async def create_game_app(
     payload: GameAppCreate,
     db: AsyncSession = Depends(get_db),
-    current_admin = Depends(get_current_admin)
+    #current_admin = Depends(get_current_admin)
 ):
     stmt = select(GameApp).where(GameApp.slug == payload.slug)
     result = await db.execute(stmt)
@@ -67,7 +67,7 @@ async def update_game_app(
     item_id: UUID,  # <-- CAMBIADO DE int A UUID
     payload: GameAppUpdate,
     db: AsyncSession = Depends(get_db),
-    current_admin = Depends(get_current_admin)
+    #current_admin = Depends(get_current_admin)
 ):
     item = await db.get(GameApp, item_id)
     if not item:
@@ -84,7 +84,7 @@ async def update_game_app(
 async def delete_game_app(
     item_id: UUID,  # <-- CAMBIADO DE int A UUID
     db: AsyncSession = Depends(get_db),
-    current_admin = Depends(get_current_admin)
+    #current_admin = Depends(get_current_admin)
 ):
     item = await db.get(GameApp, item_id)
     if not item:
