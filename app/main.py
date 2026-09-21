@@ -26,6 +26,8 @@ app.add_middleware(
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://agecare-web.vercel.app",
+        "https://agecare-web.vercel.app/",
+        "null"
     ],
     allow_credentials=True,
     allow_methods=["*"],
