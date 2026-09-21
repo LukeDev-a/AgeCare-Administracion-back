@@ -1,20 +1,32 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from typing import List, Optional
-
+from typing import Optional
+import uuid
+from fastapi.encoders import jsonable_encoder
 from app.database import get_db
 from app.deps import get_current_admin
 from app.models import GameApp
-from app.schemas.games_apps import GameAppCreate, GameAppUpdate, GameAppOut
+from app.schemas.games_apps import GameAppCreate, GameAppUpdate
 
 router = APIRouter(prefix="/games-apps", tags=["Juegos y Apps"])
 
-@router.get("/", response_model=List[GameAppOut])
+@router.get("/active")
+async def get_active_games_apps(
+    db: AsyncSession = Depends(get_db),
+    current_admin = Depends(get_current_admin)
+):
+    stmt = select(GameApp).where(GameApp.is_active == True).order_by(GameApp.created_at.desc())
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+    return jsonable_encoder(items)
+
+@router.get("/")
 async def list_games_apps(
     db: AsyncSession = Depends(get_db),
     item_type: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
+    page_size: int = Query(200),
     current_admin = Depends(get_current_admin)
 ):
     stmt = select(GameApp)
@@ -23,10 +35,12 @@ async def list_games_apps(
     if is_active is not None:
         stmt = stmt.where(GameApp.is_active == is_active)
     
-    result = await db.execute(stmt.order_by(GameApp.created_at.desc()))
-    return result.scalars().all()
+    stmt = stmt.order_by(GameApp.created_at.desc()).limit(page_size)
+    result = await db.execute(stmt)
+    items = result.scalars().all()
+    return jsonable_encoder(items)
 
-@router.post("/", response_model=GameAppOut, status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_game_app(
     payload: GameAppCreate,
     db: AsyncSession = Depends(get_db),
@@ -44,16 +58,22 @@ async def create_game_app(
     db.add(new_item)
     await db.commit()
     await db.refresh(new_item)
-    return new_item
+    return jsonable_encoder(new_item)
 
-@router.put("/{item_id}", response_model=GameAppOut)
+@router.put("/{item_id}")
+@router.put("/{item_id}/")
 async def update_game_app(
-    item_id: int,
+    item_id: str,
     payload: GameAppUpdate,
     db: AsyncSession = Depends(get_db),
     current_admin = Depends(get_current_admin)
 ):
-    item = await db.get(GameApp, item_id)
+    try:
+        parsed_id = uuid.UUID(item_id)
+    except ValueError:
+        parsed_id = item_id
+
+    item = await db.get(GameApp, parsed_id)
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No encontrado")
     
@@ -62,15 +82,21 @@ async def update_game_app(
     
     await db.commit()
     await db.refresh(item)
-    return item
+    return jsonable_encoder(item)
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{item_id}/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_game_app(
-    item_id: int,
+    item_id: str,
     db: AsyncSession = Depends(get_db),
     current_admin = Depends(get_current_admin)
 ):
-    item = await db.get(GameApp, item_id)
+    try:
+        parsed_id = uuid.UUID(item_id)
+    except ValueError:
+        parsed_id = item_id
+
+    item = await db.get(GameApp, parsed_id)
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No encontrado")
     
