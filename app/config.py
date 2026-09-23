@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     app_name: str = "AgeCare Admin API"
     environment: str = "dev"  # dev | staging | prod
+    allows_origins: str
     database_url: str = "postgresql+asyncpg://agecare:agecare@localhost:5432/agecare_admin"
 
     # JWT

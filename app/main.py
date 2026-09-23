@@ -20,15 +20,11 @@ app = FastAPI(
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
+origenes_permitidos = get_settings().allows_origins.split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "https://agecare-web.vercel.app",
-        "https://agecare-web.vercel.app/",
-        "null"
-    ],
+    allow_origins= origenes_permitidos, 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -367,10 +367,6 @@ async def seed() -> None:
 
         # Armamos la ruta final hacia la carpeta estática
         BASE_URL_JUEGOS = f"{DOMINIO_API}"
-        
-
-
-
 
         ACCESIBILIDAD_COMUN = {
             "gesto_unico": True,
