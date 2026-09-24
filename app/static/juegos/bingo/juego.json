@@ -1,0 +1,7 @@
+{
+  "id": "bingo",
+  "nombre": "Bingo",
+  "icono": "grid-dots",
+  "entrada": "index.html",
+  "descripcion_corta": "Marca en tu cartón los números que se van cantando"
+}

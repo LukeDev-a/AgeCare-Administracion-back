@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rompecabezas</title>
+<link rel="stylesheet" href="/compartido/css/accesibilidad.css">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<h1 class="titulo-juego">Rompecabezas</h1>
+
+<p class="instruccion">Toca dos piezas para intercambiarlas de lugar</p>
+
+<div id="tablero" class="tablero" role="group" aria-label="Tablero de rompecabezas de 9 piezas"></div>
+
+<div id="celebracion" class="mensaje-exito" hidden>
+  ¡Muy bien! Completaste el rompecabezas
+</div>
+
+<div class="controles">
+  <button class="boton-grande" id="btn-reiniciar">Empezar de nuevo</button>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

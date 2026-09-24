@@ -1,0 +1,74 @@
+.instruccion {
+  text-align: center;
+  font-size: 19px;
+  margin-bottom: 20px;
+}
+
+.grilla {
+  display: grid;
+  grid-template-columns: repeat(6, 46px);
+  grid-template-rows: repeat(6, 46px);
+  gap: 5px;
+  justify-content: center;
+  margin: 0 auto 20px;
+  background: var(--color-acento-suave);
+  padding: 10px;
+  border-radius: var(--radio-borde);
+  width: fit-content;
+}
+
+.celda {
+  width: 46px;
+  height: 46px;
+  border: none;
+  border-radius: 8px;
+  background: white;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--color-texto);
+  cursor: pointer;
+}
+
+.celda.seleccionada {
+  background: #FDE9C7;
+  outline: 3px solid #EF9F27;
+}
+
+.celda.encontrada {
+  background: var(--color-exito-suave);
+  color: var(--color-exito);
+}
+
+.celda.incorrecta {
+  background: #FCEBEB;
+}
+
+.lista-palabras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.palabra-etiqueta {
+  font-size: 18px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: var(--radio-borde);
+  background: white;
+  border: 2px solid var(--color-acento);
+  color: var(--color-acento);
+}
+
+.palabra-etiqueta.encontrada {
+  background: var(--color-exito-suave);
+  border-color: var(--color-exito);
+  color: var(--color-exito);
+  text-decoration: line-through;
+}
+
+.controles {
+  display: flex;
+  justify-content: center;
+}

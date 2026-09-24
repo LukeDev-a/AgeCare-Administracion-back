@@ -1,0 +1,7 @@
+{
+  "id": "rompecabezas",
+  "nombre": "Rompecabezas",
+  "icono": "puzzle",
+  "entrada": "index.html",
+  "descripcion_corta": "Arma la imagen tocando dos piezas para intercambiarlas"
+}

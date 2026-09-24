@@ -1,0 +1,7 @@
+{
+  "id": "jardin",
+  "nombre": "Mi jardín",
+  "icono": "plant",
+  "entrada": "index.html",
+  "descripcion_corta": "Riega tu planta y obsérvala crecer, sin apuro y sin errores posibles"
+}

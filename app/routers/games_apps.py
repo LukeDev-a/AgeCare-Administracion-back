@@ -1,9 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+<<<<<<< HEAD
 from typing import Optional
 import uuid
 from fastapi.encoders import jsonable_encoder
+=======
+from typing import List, Optional
+from uuid import UUID
+
+>>>>>>> dfa99a14405b591cf84eddb04598ed07e45e5355
 from app.database import get_db
 from app.deps import get_current_admin
 from app.models import GameApp
@@ -26,8 +32,12 @@ async def list_games_apps(
     db: AsyncSession = Depends(get_db),
     item_type: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
+<<<<<<< HEAD
     page_size: int = Query(200),
     current_admin = Depends(get_current_admin)
+=======
+    #current_admin = Depends(get_current_admin)
+>>>>>>> dfa99a14405b591cf84eddb04598ed07e45e5355
 ):
     stmt = select(GameApp)
     if item_type:
@@ -40,11 +50,30 @@ async def list_games_apps(
     items = result.scalars().all()
     return jsonable_encoder(items)
 
+<<<<<<< HEAD
 @router.post("/", status_code=status.HTTP_201_CREATED)
+=======
+# --- NUEVA RUTA PARA SOLUCIONAR EL ERROR 405 ---
+@router.get("/active", response_model=List[GameAppOut])
+async def list_active_games_apps(
+    db: AsyncSession = Depends(get_db),
+    item_type: Optional[str] = Query(None),
+    #current_admin = Depends(get_current_admin)
+):
+    stmt = select(GameApp).where(GameApp.is_active == True)
+    if item_type:
+        stmt = stmt.where(GameApp.item_type == item_type)
+    
+    result = await db.execute(stmt.order_by(GameApp.created_at.desc()))
+    return result.scalars().all()
+# -----------------------------------------------
+
+@router.post("/", response_model=GameAppOut, status_code=status.HTTP_201_CREATED)
+>>>>>>> dfa99a14405b591cf84eddb04598ed07e45e5355
 async def create_game_app(
     payload: GameAppCreate,
     db: AsyncSession = Depends(get_db),
-    current_admin = Depends(get_current_admin)
+    #current_admin = Depends(get_current_admin)
 ):
     stmt = select(GameApp).where(GameApp.slug == payload.slug)
     result = await db.execute(stmt)
@@ -63,10 +92,14 @@ async def create_game_app(
 @router.put("/{item_id}")
 @router.put("/{item_id}/")
 async def update_game_app(
+<<<<<<< HEAD
     item_id: str,
+=======
+    item_id: UUID,  # <-- CAMBIADO DE int A UUID
+>>>>>>> dfa99a14405b591cf84eddb04598ed07e45e5355
     payload: GameAppUpdate,
     db: AsyncSession = Depends(get_db),
-    current_admin = Depends(get_current_admin)
+    #current_admin = Depends(get_current_admin)
 ):
     try:
         parsed_id = uuid.UUID(item_id)
@@ -87,9 +120,13 @@ async def update_game_app(
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 @router.delete("/{item_id}/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_game_app(
+<<<<<<< HEAD
     item_id: str,
+=======
+    item_id: UUID,  # <-- CAMBIADO DE int A UUID
+>>>>>>> dfa99a14405b591cf84eddb04598ed07e45e5355
     db: AsyncSession = Depends(get_db),
-    current_admin = Depends(get_current_admin)
+    #current_admin = Depends(get_current_admin)
 ):
     try:
         parsed_id = uuid.UUID(item_id)

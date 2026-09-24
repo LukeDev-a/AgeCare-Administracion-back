@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buscar diferencias</title>
+<link rel="stylesheet" href="../compartido/css/accesibilidad.css">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<h1 class="titulo-juego">Buscar diferencias</h1>
+
+<p class="instruccion">Toca en el lugar donde las dos imágenes son distintas</p>
+
+<p class="contador">Encontradas: <span id="contador">0</span> de <span id="total"></span></p>
+
+<div class="escenas">
+  <div class="imagen-contenedor" id="imagenA" aria-label="Primera escena"></div>
+  <div class="imagen-contenedor" id="imagenB" aria-label="Segunda escena"></div>
+</div>
+
+<div id="celebracion" class="mensaje-exito" hidden>
+  ¡Excelente! Encontraste todas las diferencias
+</div>
+
+<div class="controles">
+  <button class="boton-grande" id="btn-reiniciar">Empezar de nuevo</button>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>

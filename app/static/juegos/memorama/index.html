@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Memorama</title>
+<link rel="stylesheet" href="../compartido/css/accesibilidad.css">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<h1 class="titulo-juego">Memorama</h1>
+
+<p class="instruccion">Toca dos cartas para ver si son iguales</p>
+
+<div id="tablero" class="tablero" role="group" aria-label="Tablero de memorama con 12 cartas"></div>
+
+<div id="celebracion" class="mensaje-exito" hidden>
+  ¡Felicidades! Encontraste todas las parejas
+</div>
+
+<div class="controles">
+  <button class="boton-grande" id="btn-reiniciar">Empezar de nuevo</button>
+</div>
+
+<script src="temas/temas.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

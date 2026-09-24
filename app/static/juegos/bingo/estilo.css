@@ -1,0 +1,64 @@
+.instruccion {
+  text-align: center;
+  font-size: 20px;
+  margin-bottom: 20px;
+}
+
+.numero-cantado-contenedor {
+  text-align: center;
+  margin-bottom: 16px;
+}
+
+.numero-cantado-etiqueta {
+  font-size: 16px;
+  color: var(--color-texto);
+  margin: 0 0 4px;
+}
+
+.numero-cantado {
+  font-size: 56px;
+  font-weight: 700;
+  color: var(--color-acento);
+  margin: 0;
+  min-height: 68px;
+}
+
+.controles {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.carton {
+  display: grid;
+  grid-template-columns: repeat(4, 68px);
+  grid-template-rows: repeat(4, 68px);
+  gap: 8px;
+  justify-content: center;
+  margin: 0 auto 24px;
+  background: var(--color-acento-suave);
+  padding: 12px;
+  border-radius: var(--radio-borde);
+  width: fit-content;
+}
+
+.casilla {
+  width: 68px;
+  height: 68px;
+  border: none;
+  border-radius: 10px;
+  background: white;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-texto);
+  cursor: pointer;
+}
+
+.casilla.marcada {
+  background: var(--color-exito);
+  color: white;
+}
+
+.casilla:disabled {
+  cursor: default;
+}

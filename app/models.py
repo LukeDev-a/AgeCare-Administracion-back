@@ -358,25 +358,48 @@ class LegalVersion(Base):
                                                  onupdate=func.now())
     __table_args__ = (UniqueConstraint("doc_type", "semver"),)
 
+# ---- Juegos ----- #
 from sqlalchemy import Column, String, Boolean, Text, DateTime, Integer, func
+from uuid import UUID
 
 class GameApp(Base):
+    """Catálogo de juegos y apps que se ofrecen al adulto mayor.
+ 
+    `is_active` significa "visible ahora mismo en la app del adulto mayor".
+    El administrador lo usa para rotar qué se juega cada día, de forma global
+    (la misma selección para todos los pacientes).
+    """
     __tablename__ = "games_apps"
-
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    slug = Column(String(100), unique=True, index=True, nullable=False)
-    title = Column(String(150), nullable=False)
-    description = Column(Text, nullable=True)
-    item_type = Column(String(20), nullable=False, default="game")  # 'game' o 'app'
-    category = Column(String(80), nullable=False)
-    
-    icon_url = Column(String(500), nullable=True)
-    banner_url = Column(String(500), nullable=True)
-    target_url = Column(String(500), nullable=True)
-    
-    is_active = Column(Boolean, default=True, nullable=False)
-    min_tier = Column(String(50), default="gratuito", nullable=False)
-    featured = Column(Boolean, default=False, nullable=False)
-
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), server_default=func.now(), nullable=False)
+ 
+    id: Mapped[uuid.UUID] = pk()
+ 
+    # Identidad
+    slug: Mapped[str] = mapped_column(String(100), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(150))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    item_type: Mapped[str] = mapped_column(String(20), index=True, default="game")  # game | app
+    category: Mapped[str] = mapped_column(String(80), index=True)
+ 
+    # Recursos visuales y de ejecución
+    icon_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    banner_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    preview_image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    target_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+ 
+    # Publicación y orden
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    featured: Mapped[bool] = mapped_column(Boolean, default=False)
+    min_tier: Mapped[str] = mapped_column(String(50), default="gratuito")
+    sort_order: Mapped[int] = mapped_column(Integer, default=0, index=True)
+ 
+    # Metadatos de accesibilidad (se llenan desde juego.json)
+    accessibility: Mapped[dict | None] = mapped_column(PortableJSON, nullable=True)
+ 
+    # Auditoría y borrado lógico
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    updated_by_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    created_at: Mapped[datetime] = ts_now()
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

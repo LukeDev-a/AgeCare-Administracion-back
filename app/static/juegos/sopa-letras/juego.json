@@ -1,0 +1,7 @@
+{
+  "id": "sopa-letras",
+  "nombre": "Sopa de letras",
+  "icono": "abc",
+  "entrada": "index.html",
+  "descripcion_corta": "Encuentra las palabras tocando su primera y su última letra"
+}

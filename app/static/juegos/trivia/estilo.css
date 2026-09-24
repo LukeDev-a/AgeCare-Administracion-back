@@ -1,0 +1,71 @@
+.contador {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--color-acento);
+  margin-bottom: 20px;
+}
+
+.tarjeta-pregunta {
+  max-width: 480px;
+  margin: 0 auto 20px;
+  background: white;
+  border-radius: var(--radio-borde);
+  border: 2px solid var(--color-acento-suave);
+  padding: 24px;
+}
+
+.texto-pregunta {
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+  margin: 0 0 20px;
+}
+
+.opciones {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.opcion-boton {
+  min-height: 56px;
+  padding: 14px 20px;
+  font-size: 19px;
+  font-weight: 500;
+  border-radius: var(--radio-borde);
+  border: 2px solid var(--color-acento);
+  background: white;
+  color: var(--color-texto);
+  cursor: pointer;
+  text-align: left;
+}
+
+.opcion-boton:hover,
+.opcion-boton:focus {
+  background: var(--color-acento-suave);
+  outline: none;
+}
+
+.opcion-boton.correcta {
+  background: var(--color-exito-suave);
+  border-color: var(--color-exito);
+  color: var(--color-exito);
+  font-weight: 600;
+}
+
+.opcion-boton.incorrecta {
+  background: #FCEBEB;
+  border-color: #A32D2D;
+  color: #A32D2D;
+}
+
+.opcion-boton:disabled {
+  cursor: default;
+}
+
+.controles {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+}

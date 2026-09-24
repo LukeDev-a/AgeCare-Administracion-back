@@ -1,0 +1,7 @@
+{
+  "id": "ordenar-secuencias",
+  "nombre": "Ordenar secuencias",
+  "icono": "list-numbers",
+  "entrada": "index.html",
+  "descripcion_corta": "Ordena los pasos de una actividad tocando dos para intercambiarlos"
+}

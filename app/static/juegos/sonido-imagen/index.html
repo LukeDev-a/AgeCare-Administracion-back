@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Emparejar sonido e imagen</title>
+<link rel="stylesheet" href="../compartido/css/accesibilidad.css">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+
+<h1 class="titulo-juego">Escucha y toca la imagen</h1>
+
+<p class="contador">Sonido <span id="numero-actual"></span> de <span id="numero-total"></span></p>
+
+<div class="controles">
+  <button class="boton-grande" id="btn-escuchar">🔊 Escuchar de nuevo</button>
+</div>
+
+<div id="opciones" class="opciones" role="group" aria-label="Opciones de imagen"></div>
+
+<div id="siguiente-contenedor" class="controles" hidden>
+  <button class="boton-grande" id="btn-siguiente">Siguiente sonido</button>
+</div>
+
+<div id="celebracion" class="mensaje-exito" hidden>
+  ¡Muy bien! Encontraste todos los sonidos
+</div>
+
+<div class="controles">
+  <button class="boton-grande" id="btn-reiniciar">Jugar otra vez</button>
+</div>
+
+<script src="sonidos.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
