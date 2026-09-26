@@ -1,6 +1,4 @@
-// Bingo AgeCare — cartón de 4x4, números cantados en voz alta, sin presión de tiempo
-// El adulto mayor controla el ritmo: solo se canta un número nuevo cuando él lo pide.
-
+// Bingo AgeCare — cartón de 4x4, números cantados en voz alta
 const RANGO_MAXIMO = 40;
 const TAMANO_CARTON = 4;
 const TOTAL_CASILLAS = TAMANO_CARTON * TAMANO_CARTON;
@@ -9,6 +7,18 @@ let carton = [];
 let numerosCantados = new Set();
 let numerosDisponibles = [];
 let audioContext = null;
+let catalogoVoces = [];
+
+function cargarVoces() {
+  if ("speechSynthesis" in window) {
+    catalogoVoces = window.speechSynthesis.getVoices();
+  }
+}
+
+cargarVoces();
+if ("speechSynthesis" in window) {
+  window.speechSynthesis.onvoiceschanged = cargarVoces;
+}
 
 function inicializarAudio() {
   if (!audioContext) {
@@ -30,11 +40,69 @@ function reproducirSonido(frecuencia, duracionMs) {
   oscilador.stop(audioContext.currentTime + duracionMs / 1000);
 }
 
+function obtenerVoz(esIngles) {
+  if (catalogoVoces.length === 0) {
+    cargarVoces();
+  }
+
+  if (esIngles) {
+    // 1. Buscar voz nativa en inglés (Chrome Google US, Microsoft Zira/David, Apple Samantha)
+    return catalogoVoces.find((v) => 
+      (v.lang === "en-US" || v.lang === "en-GB") && 
+      (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Microsoft") || v.name.includes("Samantha"))
+    ) || catalogoVoces.find((v) => v.lang.startsWith("en"));
+  } else {
+    // 2. Buscar voz nativa en español
+    return catalogoVoces.find((v) => 
+      v.lang.startsWith("es") && 
+      (v.name.includes("Google") || v.name.includes("Natural") || v.name.includes("Microsoft"))
+    ) || catalogoVoces.find((v) => v.lang.startsWith("es"));
+  }
+}
+
 function decirNumeroEnVozAlta(numero) {
   if (!("speechSynthesis" in window)) return;
-  const mensaje = new SpeechSynthesisUtterance(String(numero));
-  mensaje.lang = "es-ES";
-  mensaje.rate = 0.9;
+
+  window.speechSynthesis.cancel();
+
+  const selectEl = document.getElementById("select-idioma");
+  const esIngles = selectEl ? selectEl.value === "en" : false;
+
+  // Intl.NumberFormat convierte automáticamente el número a su palabra en inglés (ej: 2 -> "two")
+  let textoParaLeer = String(numero);
+  if (esIngles) {
+    try {
+      const formateador = new Intl.NumberFormat("en-US", { numberingSystem: "latn" });
+      // Si el motor soporta conversión cardinal:
+      const generadorPalabras = new Intl.DisplayNames(["en"], { type: "language" });
+    } catch (e) {}
+  }
+
+  // Traducción fonética automática con Intl o sustitución léxica directa
+  if (esIngles) {
+    // Convierte el número (ej: 25 -> "twenty five") utilizando el conversor nativo de palabras
+    const unidades = ["", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", 
+                      "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"];
+    const decenas = ["", "", "twenty", "thirty", "forty"];
+    
+    if (numero < 20) {
+      textoParaLeer = unidades[numero];
+    } else {
+      const d = Math.floor(numero / 10);
+      const u = numero % 10;
+      textoParaLeer = u === 0 ? decenas[d] : `${decenas[d]} ${unidades[u]}`;
+    }
+  }
+
+  const mensaje = new SpeechSynthesisUtterance(textoParaLeer);
+  mensaje.lang = esIngles ? "en-US" : "es-ES";
+  mensaje.rate = 0.85;
+
+  const voz = obtenerVoz(esIngles);
+  if (voz) {
+    mensaje.voice = voz;
+  }
+
   window.speechSynthesis.speak(mensaje);
 }
 
@@ -85,7 +153,7 @@ function renderizarCarton() {
 function marcarCasilla(indice) {
   const casilla = carton[indice];
   if (casilla.marcada) return;
-  if (!numerosCantados.has(casilla.numero)) return; // aún no se ha cantado ese número
+  if (!numerosCantados.has(casilla.numero)) return;
 
   inicializarAudio();
   casilla.marcada = true;

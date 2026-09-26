@@ -11,14 +11,14 @@
 
 .numero-cantado-etiqueta {
   font-size: 16px;
-  color: var(--color-texto);
+  color: var(--color-texto, #333);
   margin: 0 0 4px;
 }
 
 .numero-cantado {
   font-size: 56px;
   font-weight: 700;
-  color: var(--color-acento);
+  color: var(--color-acento, #2563eb);
   margin: 0;
   min-height: 68px;
 }
@@ -26,7 +26,36 @@
 .controles {
   display: flex;
   justify-content: center;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
+}
+
+/* Selector de idioma optimizado */
+.selector-idioma {
+  margin: 10px auto 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-texto, #1f2937);
+}
+
+.selector-idioma select {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 2px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #1f2937;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.selector-idioma select:focus {
+  border-color: #2563eb;
 }
 
 .carton {
@@ -36,9 +65,9 @@
   gap: 8px;
   justify-content: center;
   margin: 0 auto 24px;
-  background: var(--color-acento-suave);
+  background: var(--color-acento-suave, #e2e8f0);
   padding: 12px;
-  border-radius: var(--radio-borde);
+  border-radius: var(--radio-borde, 12px);
   width: fit-content;
 }
 
@@ -50,12 +79,12 @@
   background: white;
   font-size: 22px;
   font-weight: 600;
-  color: var(--color-texto);
+  color: var(--color-texto, #1f2937);
   cursor: pointer;
 }
 
 .casilla.marcada {
-  background: var(--color-exito);
+  background: var(--color-exito, #16a34a);
   color: white;
 }
 
