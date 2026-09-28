@@ -80,6 +80,24 @@ async def update_game_app(
     await db.refresh(item)
     return item
 
+@router.post("/{item_id}/toggle", response_model=GameAppOut)
+async def toggle_game_app(
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    #current_admin = Depends(get_current_admin)
+):
+    item = await db.get(GameApp, item_id)
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Juego/App no encontrado"
+        )
+
+    item.is_active = not item.is_active
+    await db.commit()
+    await db.refresh(item)
+    return item
+
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_game_app(
     item_id: UUID,  # <-- CAMBIADO DE int A UUID
