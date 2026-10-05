@@ -34,7 +34,13 @@ class AdminUser(Base):
     role: Mapped[str] = mapped_column(String(20))  # enum AdminRole
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     mfa_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
-    mfa_secret: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    mfa_secret: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    mfa_required: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    mfa_last_step: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    auth_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    recovery_hashes: Mapped[list | None] = mapped_column(PortableJSON, nullable=True)
+    invitation_cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    invitation_delivery_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     invitation_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -52,6 +58,43 @@ class AdminSession(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rotated_to: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
     created_at: Mapped[datetime] = ts_now()
+    mfa_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    auth_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+
+
+class AdminInvitation(Base):
+    __tablename__ = "admin_invitations"
+    id: Mapped[uuid.UUID] = pk()
+    admin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("admin_users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    secret_encrypted: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = ts_now()
+
+
+class InvitationEmail(Base):
+    __tablename__ = "invitation_emails"
+    id: Mapped[uuid.UUID] = pk()
+    invitation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("admin_invitations.id", ondelete="CASCADE"), index=True)
+    payload_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="queued")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = ts_now()
+
+
+class MfaEnrollment(Base):
+    __tablename__ = "mfa_enrollments"
+    id: Mapped[uuid.UUID] = pk()
+    admin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("admin_users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    secret_encrypted: Mapped[str] = mapped_column(String(512))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
 
 
 class AuditLog(Base):

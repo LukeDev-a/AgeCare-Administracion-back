@@ -1,18 +1,17 @@
 """Secciones 12, 13 y 14 — Configuración, legales y auditoría."""
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
 from jsonschema import Draft202012Validator
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from app import models
 from app.audit import audit
 from app.deps import Db, require
 from app.enums import LegalDocType
 from app.errors import ApiError, conflict, invalid, not_found
-from app.schemas.common import Page
-from app.schemas.system import (AuditEntryOut, LegalCurrentOut, LegalDocumentOut,
+from app.schemas.system import (LegalCurrentOut, LegalDocumentOut,
                                 LegalDocumentsOut, LegalDraftOut, LegalVersionCreateIn,
                                 LegalVersionOut, SettingOut, SettingPutIn, SettingsOut)
 from app.security import now_utc
@@ -146,42 +145,3 @@ async def publish_legal_version(version_id: UUID, request: Request, db: Db,
                            effective_date=v.effective_date,
                            requires_reacceptance=v.requires_reacceptance,
                            status=v.status, published_at=v.published_at)
-
-
-# ---------- 14.1 Auditoría ----------
-@router.get("/audit-log", response_model=Page[AuditEntryOut], dependencies=[require("audit")])
-async def audit_log(db: Db,
-                    actor_id: UUID | None = None,
-                    action: str | None = None,
-                    entity_type: str | None = None,
-                    entity_id: UUID | None = None,
-                    date_from: datetime | None = None,
-                    date_to: datetime | None = None,
-                    page: int = Query(default=1, ge=1),
-                    page_size: int = Query(default=25, ge=1, le=100)):
-    if date_from and date_to and (date_to - date_from).days > 90:
-        raise invalid("RANGE_TOO_WIDE", "El rango temporal no puede superar 90 días. Acótalo.")
-    stmt = select(models.AuditLog)
-    if actor_id:
-        stmt = stmt.where(models.AuditLog.actor_id == actor_id)
-    if action:
-        stmt = stmt.where(models.AuditLog.action == action)
-    if entity_type:
-        stmt = stmt.where(models.AuditLog.entity_type == entity_type)
-    if entity_id:
-        stmt = stmt.where(models.AuditLog.entity_id == entity_id)
-    if date_from:
-        stmt = stmt.where(models.AuditLog.created_at >= date_from)
-    if date_to:
-        stmt = stmt.where(models.AuditLog.created_at <= date_to)
-    total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
-    rows = (await db.execute(stmt.order_by(models.AuditLog.created_at.desc())
-                             .offset((page - 1) * page_size).limit(page_size))).scalars().all()
-    return Page(items=[AuditEntryOut(
-        id=r.id,
-        actor={"admin_id": str(r.actor_id) if r.actor_id else None,
-               "name": r.actor_name, "role": r.actor_role},
-        action=r.action, entity_type=r.entity_type, entity_id=r.entity_id,
-        before=r.before, after=r.after, ip=r.ip, user_agent=r.user_agent,
-        created_at=r.created_at) for r in rows],
-        page=page, page_size=page_size, total=total)

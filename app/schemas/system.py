@@ -86,3 +86,7 @@ class AuditEntryOut(BaseModel):
     ip: str | None
     user_agent: str | None
     created_at: datetime
+    metadata: dict = Field(default_factory=dict)
+    action_label: str = ""
+    module_label: str = ""
+    entity_name: str = ""

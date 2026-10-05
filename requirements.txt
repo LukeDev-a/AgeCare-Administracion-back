@@ -9,4 +9,7 @@ email-validator>=2.1
 argon2-cffi>=23.1
 PyJWT>=2.8
 pyotp>=2.9
+cryptography>=44
+qrcode>=8
 jsonschema>=4.22
+tzdata>=2024.1; sys_platform == "win32"

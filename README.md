@@ -40,16 +40,16 @@ uvicorn app.main:app --reload
 | analista@wellq.co.uk | Analista123! | analista |
 | editora@wellq.co.uk | Editora123! | editor |
 
-(Sin MFA para facilitar la prueba; en producción el rol admin exige TOTP.)
+(El administrador demo debe configurar MFA al primer acceso. Primero configura `ADMIN_ENCRYPTION_KEY` según la guía enlazada más abajo.)
 
 ## Probar con curl
 
 ```bash
 BASE=http://localhost:8000/api/v1/admin
 
-# Login
+# Login de un rol sin MFA. Para el administrador utiliza la pantalla de configuración de MFA.
 TOKEN=$(curl -s $BASE/auth/login -H 'Content-Type: application/json' \
-  -d '{"email":"admin@wellq.co.uk","password":"Admin123!"}' | python3 -c \
+  -d '{"email":"analista@wellq.co.uk","password":"Analista123!"}' | python3 -c \
   'import sys,json;print(json.load(sys.stdin)["access_token"])')
 AUTH="Authorization: Bearer $TOKEN"
 
@@ -78,12 +78,29 @@ curl -s "$BASE/metrics/features/alerts?threshold=0.15" -H "$AUTH"
 ## Tests
 
 ```bash
-pytest            # 23 pruebas: auth/roles, métricas, tickets, settings, auditoría
+pytest            # SQLite en memoria: autenticación, cuentas, invitaciones/MFA, métricas y auditoría
 ```
 
 La suite corre sobre SQLite en memoria (sin PostgreSQL) gracias a tipos
 portables; el despliegue real usa PostgreSQL vía `ADMIN_DATABASE_URL`.
 
+## Auditoría de cambios
+
+### Cuentas de la consola
+
+El rol admin gestiona cuentas con GET/POST `/api/v1/admin/users` y PATCH/DELETE `/api/v1/admin/users/{id}`. El listado admite `q`, `role`, `is_active`, `page` y `page_size`. La edición incluye nombre, correo, rol y estado. Se validan los dominios autorizados y correos duplicados.
+
+La pantalla crea cuentas por invitación: POST sin contraseña crea una cuenta pendiente y encola un correo transaccional. SMTP y la clave de cifrado deben estar configurados. El titular elige la contraseña y confirma su autenticador antes de activar la cuenta. Por compatibilidad, POST conserva el campo opcional `password` para integraciones anteriores, pero la política de MFA se exige igualmente antes del acceso. Una cuenta pendiente no puede activarse mediante PATCH.
+
+No se permite eliminar/desactivar la cuenta autenticada ni cambiar su propio rol, y se conserva al menos un administrador activo. DELETE elimina sesiones, invitaciones y configuraciones pendientes y conserva la auditoría. Una edición sin cambios no genera eventos. Esta ampliación requiere la migración `0002`: `alembic upgrade head`. Consulta [la guía de configuración y endpoints](docs/invitaciones-mfa.md). Pruebas: `pytest tests/test_staff.py tests/test_invitations_mfa.py tests/test_security_migration.py`.
+
+Sistema → Auditoría está disponible para el rol admin. Registra cambios de negocio confirmados: crear, editar, eliminar, publicar, aprobar y activar o desactivar registros. No registra consultas, clics, navegación, controles de juegos ni operaciones técnicas de sesión.
+
+Los cambios de juegos incluyen usuario, fecha y valores antes/después. Guardar un juego sin modificar datos no genera eventos. La auditoría se guarda en la misma transacción que el cambio: si se revierte la operación, también se revierte el evento.
+
+GET /api/v1/admin/audit-log permite buscar y filtrar por usuario, acción, entidad y fechas, con paginación. GET /api/v1/admin/audit-log/export exporta hasta 5000 cambios. Ambas operaciones exigen rol admin. La vista y el CSV usan descripciones en español y nombres de módulos y registros, sin rutas HTTP. Los antiguos eventos de clics, solicitudes y autenticación quedan ocultos, sin borrarlos de la base de datos. El endpoint audit-events fue retirado.
+
+No requiere migración. Se enmascaran credenciales y se protegen las celdas CSV contra fórmulas. Pruebas: pytest tests/test_audit.py. En Windows se incluye tzdata para America/Santiago.
 ## Estructura
 
 ```
@@ -118,7 +135,7 @@ tests/             pytest + httpx (asyncio)
   rotado revoca todas las sesiones del administrador.
 - **Bloqueo optimista** en configuración (`version`) y validación del valor
   contra el JSON Schema de cada parámetro.
-- **Auditoría en toda mutación** y en logins (exitosos y fallidos), con
+- **Auditoría de cambios de negocio confirmados**, con
   campos sensibles enmascarados.
-- Los puntos donde en producción se integraría correo, push, TTS o webhooks
+- Los puntos donde en producción se integraría push, TTS o webhooks
   están marcados con comentarios en el código.

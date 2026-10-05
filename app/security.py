@@ -43,12 +43,14 @@ def as_utc(dt: datetime | None) -> datetime | None:
     return dt
 
 
-def create_access_token(admin_id: UUID, role: str) -> str:
+def create_access_token(admin_id: UUID, role: str, mfa_verified: bool = False, auth_version: int = 0) -> str:
     s = get_settings()
     payload = {
         "sub": str(admin_id),
         "role": role,
         "type": "access",
+        "mfa_verified": mfa_verified,
+        "auth_version": auth_version,
         "iat": int(now_utc().timestamp()),
         "exp": now_utc() + timedelta(minutes=s.access_token_minutes),
     }

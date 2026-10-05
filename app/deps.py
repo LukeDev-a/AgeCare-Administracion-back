@@ -12,6 +12,7 @@ from app.database import get_db
 from app.enums import READ, WRITE, AdminRole
 from app.errors import forbidden, unauthorized
 from app.security import decode_access_token
+from app.account_security import requires_mfa
 
 
 async def get_current_admin(request: Request,
@@ -26,6 +27,10 @@ async def get_current_admin(request: Request,
     admin = await db.get(models.AdminUser, UUID(payload["sub"]))
     if admin is None or not admin.is_active:
         raise unauthorized()
+    if payload.get("auth_version", 0) != admin.auth_version:
+        raise unauthorized()
+    if (requires_mfa(admin) or admin.mfa_enabled) and (not admin.mfa_enabled or not payload.get("mfa_verified")):
+        raise unauthorized("Configura o verifica MFA para acceder a la consola.", "MFA_REQUIRED")
     request.state.actor = admin
     return admin
 

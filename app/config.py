@@ -22,6 +22,17 @@ class Settings(BaseSettings):
     max_login_attempts: int = 5
     lockout_minutes: int = 15
     allowed_email_domains: str = "wellq.co.uk,wellq.co"  # separados por coma
+    frontend_url: str = "http://localhost:5173"
+    invitation_hours: int = 24
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_security: str = "starttls"  # starttls | ssl | none (solo desarrollo)
+    mail_from: str = ""
+    mail_worker_enabled: bool = True
+    mfa_required_roles: str = "admin"
+    encryption_key: str = ""  # clave Fernet estable, diferente de la clave JWT
 
     # Negocio
     business_timezone: str = "America/Santiago"

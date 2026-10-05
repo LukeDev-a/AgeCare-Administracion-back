@@ -4,6 +4,11 @@ import os
 
 os.environ["ADMIN_DATABASE_URL"] = "sqlite+aiosqlite://"
 os.environ["ADMIN_JWT_SECRET"] = "secreto-de-test"
+os.environ["ADMIN_MFA_REQUIRED_ROLES"] = ""
+os.environ["ADMIN_ENCRYPTION_KEY"] = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA="
+os.environ["ADMIN_SMTP_HOST"] = "localhost"
+os.environ["ADMIN_MAIL_FROM"] = "tests@wellq.co.uk"
+os.environ["ADMIN_MAIL_WORKER_ENABLED"] = "false"
 
 import pytest
 import pytest_asyncio
