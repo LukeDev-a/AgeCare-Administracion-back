@@ -8,6 +8,7 @@ from sqlalchemy import delete, func, select
 
 from app import models
 from app.audit import audit
+from app.login_attempts import is_locked, record_failure, reset_attempts
 from app.account_security import check_second_factor, requires_mfa
 from app.routers.account_access import create_enrollment, issue_invitation
 from app.config import get_settings
@@ -26,7 +27,6 @@ router = APIRouter(tags=["Autenticación de staff"])
 # ---------- 3.1 Login ----------
 @router.post("/auth/login", response_model=LoginOut)
 async def login(body: LoginIn, request: Request, db: Db):
-    s = get_settings()
     q = await db.execute(select(models.AdminUser).where(models.AdminUser.email == body.email.lower()).with_for_update())
     admin = q.scalar_one_or_none()
 
@@ -38,13 +38,10 @@ async def login(body: LoginIn, request: Request, db: Db):
 
     if admin is None:
         await fail()  # mismo error que contraseña incorrecta: no revela existencia
-    if admin.locked_until and as_utc(admin.locked_until) > now_utc():
+    if is_locked(admin):
         raise ApiError(423, "ACCOUNT_LOCKED", "Cuenta bloqueada 15 minutos por intentos fallidos repetidos.")
     if admin.password_hash is None or not verify_password(body.password, admin.password_hash):
-        admin.failed_attempts += 1
-        if admin.failed_attempts >= s.max_login_attempts:
-            admin.locked_until = now_utc() + timedelta(minutes=s.lockout_minutes)
-            admin.failed_attempts = 0
+        record_failure(admin)
         await fail()
     if not admin.is_active:
         await fail("ADMIN_DISABLED", "Esta cuenta de administración está desactivada. Contacta a un admin.", 403)
@@ -52,6 +49,7 @@ async def login(body: LoginIn, request: Request, db: Db):
         if not body.otp_code and not body.recovery_code:
             raise unauthorized("Esta cuenta exige segundo factor. Envía tu código TOTP o de recuperación.", "OTP_REQUIRED")
         if not check_second_factor(admin, body.otp_code, body.recovery_code):
+            record_failure(admin)
             await fail("OTP_INVALID", "El código de verificación no es válido o expiró.")
     elif requires_mfa(admin):
         enrollment = await create_enrollment(db, admin)
@@ -59,9 +57,7 @@ async def login(body: LoginIn, request: Request, db: Db):
             "code": "MFA_ENROLLMENT_REQUIRED", "message": "Debes configurar MFA antes de acceder a la consola.",
             "enrollment_token": enrollment}})
 
-    admin.failed_attempts = 0
-    admin.locked_until = None
-    previous_login = admin.last_login_at
+    reset_attempts(admin)
     admin.last_login_at = now_utc()
     request.state.actor = admin
 
@@ -80,7 +76,16 @@ async def refresh(body: RefreshIn, request: Request, db: Db):
     session = q.scalar_one_or_none()
     if session is None or as_utc(session.expires_at) < now_utc():
         raise unauthorized("La sesión no es válida o fue revocada. Inicia sesión de nuevo.", "INVALID_REFRESH")
+    # Bloquear primero la cuenta: mismo orden que login y cambios de seguridad.
+    # Serializa renovaciones de distintas sesiones y la detección de reutilización.
+    admin = await db.scalar(select(models.AdminUser).where(models.AdminUser.id == session.admin_id)
+                            .with_for_update().execution_options(populate_existing=True))
+    if admin is None:
+        raise unauthorized(code="INVALID_REFRESH")
+    await db.refresh(session, with_for_update=True)
     if session.revoked_at is not None:
+        if session.rotated_to is None:
+            raise unauthorized("La sesión no es válida o fue revocada. Inicia sesión de nuevo.", "INVALID_REFRESH")
         # Reutilización de un token ya rotado: revocar todas las sesiones (posible robo).
         sessions = (await db.execute(select(models.AdminSession)
                                      .where(models.AdminSession.admin_id == session.admin_id,
@@ -88,12 +93,12 @@ async def refresh(body: RefreshIn, request: Request, db: Db):
         for s_ in sessions:
             s_.revoked_at = now_utc()
         actor = await db.get(models.AdminUser, session.admin_id)
+        actor.auth_version += 1
         await audit(db, request, "auth.refresh_reuse", "admin_user", session.admin_id,
                     actor=actor, metadata={"outcome": "failure"})
         await db.commit()
         raise unauthorized("La sesión no es válida o fue revocada. Inicia sesión de nuevo.", "INVALID_REFRESH")
 
-    admin = await db.get(models.AdminUser, session.admin_id)
     if admin is None or not admin.is_active or session.auth_version != admin.auth_version or ((requires_mfa(admin) or admin.mfa_enabled) and (not admin.mfa_enabled or not session.mfa_verified)):
         raise unauthorized("La sesión no es válida o fue revocada. Inicia sesión de nuevo.", "INVALID_REFRESH")
     request.state.actor = admin

@@ -11,7 +11,7 @@ from app import database, models
 from app.account_security import decrypt, requires_mfa
 from app.config import get_settings
 from app.invitation_mail import deliver_pending
-from app.security import hash_password, now_utc
+from app.security import hash_password, hash_refresh, now_utc
 
 BASE = '/api/v1/admin'
 PASSWORD = 'Invitada123!'
@@ -63,9 +63,15 @@ async def test_full_invitation_mfa_login_refresh_and_recovery(client, admin_head
         stored = await db.get(models.AdminUser, UUID(user['id']))
         assert stored.password_hash != PASSWORD and stored.mfa_secret != secret and stored.mfa_secret.startswith('enc:')
         assert all(code.replace('-', '') not in stored.recovery_hashes for code in codes)
+        used_otp = pyotp.TOTP(secret).at(stored.mfa_last_step * 30)
     login_data = {'email': user['email'], 'password': PASSWORD}
+    wrong_password = await client.post(f'{BASE}/auth/login', json={**login_data,
+        'password': 'Incorrecta123!', 'recovery_code': codes[0]})
+    assert wrong_password.status_code == 401
+    async with database._session_factory() as db:
+        assert len((await db.get(models.AdminUser, UUID(user['id']))).recovery_hashes) == 10
     assert (await client.post(f'{BASE}/auth/login', json=login_data)).json()['error']['code'] == 'OTP_REQUIRED'
-    assert (await client.post(f'{BASE}/auth/login', json={**login_data, 'otp_code': pyotp.TOTP(secret).now()})).status_code == 401
+    assert (await client.post(f'{BASE}/auth/login', json={**login_data, 'otp_code': used_otp})).status_code == 401
     login = await client.post(f'{BASE}/auth/login', json={**login_data, 'recovery_code': codes[0]})
     assert login.status_code == 200
     data = login.json()
@@ -150,7 +156,8 @@ async def test_existing_user_enrollment_invalidates_old_tokens(client, admin_hea
     result = await client.post(f'{BASE}/auth/mfa/setup', headers=headers, json={'password': PASSWORD})
     enrollment = result.json()['enrollment_token']
     data = (await client.post(f'{BASE}/auth/mfa/enrollment/setup', json={'token': enrollment})).json()
-    confirmed = await client.post(f'{BASE}/auth/mfa/enrollment/confirm', json={'token': enrollment, 'otp_code': pyotp.TOTP(data['secret']).now()})
+    used_otp = pyotp.TOTP(data['secret']).now()
+    confirmed = await client.post(f'{BASE}/auth/mfa/enrollment/confirm', json={'token': enrollment, 'otp_code': used_otp})
     assert confirmed.status_code == 200
     assert (await client.get(f'{BASE}/auth/me', headers=headers)).status_code == 401
     assert (await client.post(f'{BASE}/auth/refresh', json={'refresh_token': login['refresh_token']})).status_code == 401
@@ -158,7 +165,7 @@ async def test_existing_user_enrollment_invalidates_old_tokens(client, admin_hea
     codes = confirmed.json()['recovery_codes']
     fresh = (await client.post(f'{BASE}/auth/login', json={'email': user['email'], 'password': PASSWORD, 'recovery_code': codes[0]})).json()
     headers = {'Authorization': f"Bearer {fresh['access_token']}"}
-    rejected = await client.post(f'{BASE}/auth/mfa/recovery-codes', headers=headers, json={'password': PASSWORD, 'otp_code': pyotp.TOTP(data['secret']).now()})
+    rejected = await client.post(f'{BASE}/auth/mfa/recovery-codes', headers=headers, json={'password': PASSWORD, 'otp_code': used_otp})
     assert rejected.status_code == 422
     assert rejected.json()['error']['code'] == 'INVALID_SECURITY_PROOF'
     assert (await client.get(f'{BASE}/auth/me', headers=headers)).status_code == 200
@@ -168,6 +175,10 @@ async def test_existing_user_enrollment_invalidates_old_tokens(client, admin_hea
     replaced = await client.post(f'{BASE}/auth/mfa/recovery-codes', headers=headers, json={'password': PASSWORD, 'recovery_code': codes[1]})
     assert replaced.status_code == 200
     assert len(replaced.json()['recovery_codes']) == 10
+    async with database._session_factory() as db:
+        account = await db.get(models.AdminUser, UUID(user['id']))
+        assert len(account.recovery_hashes) == 10
+        assert all(hash_refresh(code.replace('-', '')) not in account.recovery_hashes for code in codes)
     assert (await client.get(f'{BASE}/auth/me', headers=headers)).status_code == 200
     assert (await client.post(f'{BASE}/auth/refresh', json={'refresh_token': fresh['refresh_token']})).status_code == 200
     assert (await client.post(f'{BASE}/auth/login', json={'email': user['email'], 'password': PASSWORD, 'recovery_code': codes[2]})).status_code == 401

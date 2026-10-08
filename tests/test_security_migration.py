@@ -32,3 +32,23 @@ def test_invitation_migration_preserves_existing_accounts(existing):
             assert tuple(row) == ('Cuenta existente', 'BASE32', 0)
         migration.upgrade()  # La revisión también funciona tras el create_all de 0001.
     engine.dispose()
+
+
+@pytest.mark.parametrize('existing', [False, True])
+def test_login_window_migration(existing):
+    engine = sa.create_engine('sqlite://')
+    with engine.begin() as connection:
+        if existing:
+            connection.execute(sa.text('CREATE TABLE admin_users (id CHAR(32) PRIMARY KEY, full_name VARCHAR(120))'))
+            connection.execute(sa.text("INSERT INTO admin_users VALUES ('123', 'Cuenta conservada')"))
+        else:
+            Base.metadata.create_all(connection)
+        path = Path(__file__).resolve().parents[1] / 'alembic/versions/0003_login_attempt_window.py'
+        spec = importlib.util.spec_from_file_location('login_window_migration', path)
+        migration = importlib.util.module_from_spec(spec); spec.loader.exec_module(migration)
+        migration.op = Operations(MigrationContext.configure(connection))
+        migration.upgrade(); migration.upgrade()
+        assert 'failed_attempt_times' in {c['name'] for c in sa.inspect(connection).get_columns('admin_users')}
+        if existing:
+            assert connection.execute(sa.text('SELECT full_name FROM admin_users')).scalar() == 'Cuenta conservada'
+    engine.dispose()

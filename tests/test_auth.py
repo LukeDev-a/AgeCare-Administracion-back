@@ -1,4 +1,5 @@
 import pytest
+from app.security import decode_access_token
 
 BASE = "/api/v1/admin"
 
@@ -46,6 +47,9 @@ async def test_refresh_rotation(client):
     r2 = await client.post(f"{BASE}/auth/refresh", json={"refresh_token": login["refresh_token"]})
     assert r2.status_code == 401
     assert r2.json()["error"]["code"] == "INVALID_REFRESH"
+    headers = {'Authorization': f"Bearer {r1.json()['access_token']}"}
+    assert (await client.get(f'{BASE}/auth/me', headers=headers)).status_code == 401
+    assert (await client.post(f'{BASE}/auth/refresh', json={'refresh_token': r1.json()['refresh_token']})).status_code == 401
 
 
 async def test_role_forbidden_on_settings(client, analyst_headers):
@@ -57,3 +61,18 @@ async def test_role_forbidden_on_settings(client, analyst_headers):
 async def test_requires_token(client):
     r = await client.get(f"{BASE}/metrics/commercial/plans")
     assert r.status_code == 401
+
+
+async def test_logout_revokes_refresh_but_preserves_access_until_expiry(client):
+    login = (await client.post(f'{BASE}/auth/login', json={
+        'email': 'admin@wellq.co.uk', 'password': 'Admin123!'})).json()
+    claims = decode_access_token(login['access_token'])
+    assert 0 < claims['exp'] - claims['iat'] <= 900
+    headers = {'Authorization': f"Bearer {login['access_token']}"}
+    response = await client.post(f'{BASE}/auth/logout', headers=headers,
+                                 json={'refresh_token': login['refresh_token']})
+    assert response.status_code == 204 and response.content == b''
+    assert (await client.get(f'{BASE}/auth/me', headers=headers)).status_code == 200
+    response = await client.post(f'{BASE}/auth/refresh', json={'refresh_token': login['refresh_token']})
+    assert response.status_code == 401
+    assert response.json()['error']['code'] == 'INVALID_REFRESH'

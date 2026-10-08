@@ -42,6 +42,7 @@ class AdminUser(Base):
     invitation_cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     invitation_delivery_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     failed_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    failed_attempt_times: Mapped[list | None] = mapped_column(PortableJSON, nullable=True)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     invitation_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

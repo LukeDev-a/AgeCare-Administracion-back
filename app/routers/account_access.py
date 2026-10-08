@@ -12,6 +12,7 @@ from app import models
 from app.account_security import (check_second_factor, decrypt, encrypt, new_recovery_codes,
                                   otp_step, provisioning, requires_mfa)
 from app.audit import audit
+from app.login_attempts import is_locked, record_failure, reset_attempts
 from app.config import get_settings
 from app.deps import CurrentAdmin, Db, require
 from app.errors import ApiError, conflict, invalid, not_found, unauthorized
@@ -58,19 +59,16 @@ async def verify_proof(db, user, body, second_factor=False):
     await db.refresh(user, with_for_update=True)
     if not user.is_active:
         raise unauthorized()
-    if user.locked_until and as_utc(user.locked_until) > now_utc():
+    if is_locked(user):
         raise ApiError(423, "ACCOUNT_LOCKED", "La cuenta está bloqueada temporalmente por intentos fallidos.")
     valid = verify_password(body.password, user.password_hash or "")
     if second_factor:
         valid = valid and user.mfa_enabled and not (body.otp_code and body.recovery_code) and check_second_factor(user, body.otp_code, body.recovery_code)
     if not valid:
-        user.failed_attempts += 1
-        if user.failed_attempts >= get_settings().max_login_attempts:
-            user.locked_until = now_utc() + timedelta(minutes=get_settings().lockout_minutes)
-            user.failed_attempts = 0
+        record_failure(user)
         await db.commit()
         raise invalid("INVALID_SECURITY_PROOF", "La contraseña o el código no son válidos. Si ya utilizaste el código del autenticador, espera el siguiente.")
-    user.failed_attempts = 0; user.locked_until = None
+    reset_attempts(user)
 
 
 async def invalidate_invitations(db, user):
@@ -142,7 +140,7 @@ async def accept_invitation(body: InvitationAcceptIn, request: Request, db: Db, 
     user.mfa_enabled = enabled
     user.mfa_secret = invitation.secret_encrypted if enabled else None
     user.mfa_last_step = step
-    user.failed_attempts = 0; user.locked_until = None
+    reset_attempts(user)
     user.invitation_expires_at = None
     codes = new_recovery_codes(user) if enabled else []
     invitation.accepted_at = now_utc(); invitation.secret_encrypted = None
