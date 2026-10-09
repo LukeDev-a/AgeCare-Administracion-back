@@ -3,7 +3,7 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.enums import LegalDocType
 
@@ -27,8 +27,13 @@ class SettingsOut(BaseModel):
 
 class SettingPutIn(BaseModel):
     value: Any
-    version: int
+    version: int = Field(ge=1)
     change_note: str = Field(min_length=5, max_length=500)
+
+    @field_validator('change_note', mode='before')
+    @classmethod
+    def trim_change_note(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
 
 # ---- Legales ----

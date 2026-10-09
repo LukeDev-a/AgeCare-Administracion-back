@@ -14,7 +14,7 @@ from app.errors import ApiError, conflict, invalid, not_found
 from app.schemas.system import (LegalCurrentOut, LegalDocumentOut,
                                 LegalDocumentsOut, LegalDraftOut, LegalVersionCreateIn,
                                 LegalVersionOut, SettingOut, SettingPutIn, SettingsOut)
-from app.security import now_utc
+from app.security import as_utc, now_utc
 
 router = APIRouter(tags=["Sistema"])
 
@@ -25,7 +25,7 @@ def _setting_out(s: models.SystemSetting) -> SettingOut:
     return SettingOut(key=s.key, value=s.value, schema=s.value_schema, description=s.description,
                       updated_by={"admin_id": str(s.updated_by), "name": s.updated_by_name}
                       if s.updated_by else None,
-                      updated_at=s.updated_at, version=s.version)
+                      updated_at=as_utc(s.updated_at), version=s.version)
 
 
 # ---------- 12.1 Leer configuración ----------
@@ -44,7 +44,8 @@ async def get_settings_endpoint(db: Db, key: str | None = Query(default=None)):
 @router.put("/settings/{key}", response_model=SettingOut)
 async def put_setting(key: str, body: SettingPutIn, request: Request, db: Db,
                       admin: models.AdminUser = require("settings", write=True)):
-    s = await db.get(models.SystemSetting, key)
+    s = await db.scalar(select(models.SystemSetting).where(models.SystemSetting.key == key)
+                         .with_for_update().execution_options(populate_existing=True))
     if s is None:
         raise ApiError(404, "UNKNOWN_SETTING", "No existe ningún parámetro con esa clave.")
     if body.version != s.version:
@@ -53,15 +54,15 @@ async def put_setting(key: str, body: SettingPutIn, request: Request, db: Db,
     if errors:
         details = [{"field": "/".join(str(p) for p in e.path) or key, "issue": e.message} for e in errors]
         raise invalid("INVALID_VALUE", "El valor no cumple el esquema del parámetro. Revisa error.details.", details)
-    before = {"value": s.value, "version": s.version}
+    before = {"key": s.key, "name": s.description or s.key, "value": s.value, "version": s.version}
     s.value = body.value
     s.version += 1
     s.updated_by = admin.id
     s.updated_by_name = admin.full_name
     s.updated_at = now_utc()
-    # La propagación real usa caché con TTL de 60 s; los servicios no requieren reinicio.
     await audit(db, request, "settings.update", "system_setting", None,
-                before=before, after={"value": s.value, "version": s.version, "note": body.change_note})
+                before=before, after={"key": s.key, "name": s.description or s.key,
+                                     "value": s.value, "version": s.version, "note": body.change_note})
     return _setting_out(s)
 
 
