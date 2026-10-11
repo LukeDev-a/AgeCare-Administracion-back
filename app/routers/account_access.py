@@ -25,7 +25,7 @@ router = APIRouter(tags=["Invitaciones y MFA"])
 @router.get("/users/policy", dependencies=[require("staff")])
 async def staff_policy():
     settings = get_settings()
-    return {"mfa_required_roles": [role.strip() for role in settings.mfa_required_roles.split(",") if role.strip()],
+    return {"mfa_required_roles": sorted({"admin", *(role.strip() for role in settings.mfa_required_roles.split(",") if role.strip())}),
             "allowed_email_domains": settings.allowed_domains, "invitation_hours": settings.invitation_hours}
 
 

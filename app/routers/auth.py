@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import JSONResponse
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 
 from app import models
 from app.audit import audit
@@ -147,7 +147,7 @@ async def create_staff(body: AdminCreateIn, request: Request, db: Db,
     exists = (await db.execute(select(models.AdminUser).where(models.AdminUser.email == email))).scalar_one_or_none()
     if exists:
         raise conflict("EMAIL_IN_USE", "Ya existe una cuenta de staff con ese correo.")
-    require_mfa = body.require_mfa if body.require_mfa is not None else body.role == AdminRole.admin
+    require_mfa = body.role == AdminRole.admin or bool(body.require_mfa)
     new = models.AdminUser(full_name=body.full_name, email=email, role=body.role,
                            password_hash=hash_password(body.password) if body.password is not None else None,
                            is_active=body.password is not None,
@@ -242,7 +242,7 @@ async def patch_staff(admin_id: UUID, body: AdminPatchIn, request: Request, db: 
         target.full_name = body.full_name
     if body.role is not None:
         target.role = body.role
-        if body.role in get_settings().mfa_required_roles.split(","):
+        if body.role == AdminRole.admin or body.role in {role.strip() for role in get_settings().mfa_required_roles.split(",")}:
             target.mfa_required = True
     if body.is_active is not None:
         if body.is_active and (not target.password_hash or (target.mfa_enabled and not target.mfa_secret)):
@@ -291,7 +291,13 @@ async def delete_staff(admin_id: UUID, request: Request, db: Db,
             models.AdminUser.id != target.id))
         if not others:
             raise conflict("LAST_ADMIN", "Debe existir al menos una cuenta activa con rol admin.")
-    await audit(db, request, "staff.delete", "admin_user", target.id, before=staff_snapshot(target))
+    # Conserva tickets y respuestas; retira la referencia al encargado que
+    # dejará de existir antes de borrar su cuenta (FK restrictiva en PostgreSQL).
+    unassigned = (await db.execute(update(models.Ticket)
+        .where(models.Ticket.assigned_to == target.id)
+        .values(assigned_to=None).returning(models.Ticket.id))).all()
+    await audit(db, request, "staff.delete", "admin_user", target.id,
+                before=staff_snapshot(target), after={"unassigned_tickets": len(unassigned)})
     # Elimina los refresh tokens asociados; el historial de auditoría se conserva.
     await db.execute(delete(models.AdminSession).where(models.AdminSession.admin_id == target.id))
     invitation_ids = select(models.AdminInvitation.id).where(models.AdminInvitation.admin_id == target.id)
@@ -299,4 +305,7 @@ async def delete_staff(admin_id: UUID, request: Request, db: Db,
     await db.execute(delete(models.AdminInvitation).where(models.AdminInvitation.admin_id == target.id))
     await db.execute(delete(models.MfaEnrollment).where(models.MfaEnrollment.admin_id == target.id))
     await db.delete(target)
+    # Confirma eliminación y auditoría antes de responder: el cliente recarga
+    # el listado inmediatamente al recibir 204, antes del teardown de get_db.
+    await db.commit()
     return Response(status_code=204)

@@ -50,6 +50,25 @@ Los tokens y secretos no se devuelven en el listado de cuentas ni se registran e
 
 ## Validación
 
+### Preparación de correo del 10 de octubre de 2026
+
+Se restauró `.env.example` sin secretos y se añadió `scripts/check_mail.py`. El proveedor real está pendiente de indicar por el usuario. No se leyó ni modificó el `.env` existente, no se regeneraron claves ni se enviaron mensajes. El diagnóstico tiene dos pruebas aprobadas con transporte simulado.
+
+Completar solo las variables SMTP y remitente necesarias en el `.env` existente con parámetros del proveedor; no copiar los campos JWT/Fernet vacíos del ejemplo sobre claves reales. Para probar conexión sin enviar mensajes:
+
+```powershell
+# Backend ejecutado localmente, desde su carpeta:
+.\venv\Scripts\python.exe -m scripts.check_mail
+# Backend Docker: después de incorporar código/env en un despliegue autorizado:
+docker compose exec api python -m scripts.check_mail
+```
+
+El comprobador conecta, negocia TLS y autentica cuando existe usuario; no imprime respuestas SMTP ni credenciales y no envía correos. Ejecutarlo implica una conexión al proveedor y debe ser una prueba explícita. Su éxito no acredita entrega, validación del remitente ni ausencia de spam.
+
+Cambiar `.env` requiere recrear el servicio para que Compose lo cargue; un restart no basta. Incorporar código nuevo requiere reconstrucción: `docker compose up -d --build api`. No se ejecutó ese comando en esta preparación. En Docker, `localhost` de la API se refiere a su contenedor, no al PC ni a otro servicio. El enlace necesita un `ADMIN_FRONTEND_URL` accesible desde el dispositivo del destinatario; localhost solo sirve en el mismo equipo.
+
+Después de confirmar proveedor y configuración, validar con una cuenta de prueba autorizada y dominio permitido: crear invitación desde consola, revisar envío, recepción y apertura/aceptación de enlace. No confundir estado sent con entrega final: significa aceptación SMTP. Si una invitación agotó reintentos, reenviarla desde consola tras corregir configuración. No introducir una ruta pública para leer tokens ni mensajes de la cola.
+
 `pytest -q` usa SQLite en memoria y correo simulado, sin enviar mensajes a destinatarios reales. `npm test` y `npm run build` validan el frontend. Para verificar entrega real, completa SMTP y la URL pública y envía una invitación a una cuenta de prueba autorizada desde la consola.
 
 Se usan [PyOTP](https://pyauth.github.io/pyotp/) para TOTP, [Fernet](https://cryptography.io/en/latest/fernet/) para cifrado autenticado y [smtplib](https://docs.python.org/3/library/smtplib.html) para SMTP.
