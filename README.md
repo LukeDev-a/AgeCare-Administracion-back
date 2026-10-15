@@ -1,4 +1,91 @@
 # AgeCare — Admin API
+///////////////////////////////////////////////////////////
+# AgeCare — Guía simple de integración
+
+Esta guía explica los archivos que debe revisar el desarrollador para incorporar la administración de juegos y los juegos a la API de la app móvil.
+
+El backend está en `agecare back rolo/agecare_administracion`. Las rutas siguientes parten de esa carpeta.
+
+## 1. Models: qué se guarda
+
+Archivo: [app/models.py]
+Los modelos representan las tablas de la base de datos. Para juegos, buscar **`GameApp`**, que corresponde a la tabla **`games_apps`**.
+
+| Campo | Para qué sirve |
+|---|---|
+| `id` | Identificador UUID de la ficha. |
+| `slug` | Nombre único, por ejemplo `memorama`. |
+| `title`, `description`, `category` | Nombre, descripción y categoría. |
+| `item_type` | Distingue juego (`game`) de aplicación (`app`). |
+| `target_url` | Dirección que abre el juego. |
+| `is_active` | Indica si aparece en el catálogo activo. |
+| `min_tier`, `featured` | Plan asociado y marca de destacado. |
+| `created_at`, `updated_at` | Fechas de creación y modificación. |
+
+La tabla guarda la **ficha**; el HTML, CSS y JavaScript se guardan en archivos.
+
+**Para integrar:** incorporar `GameApp` utilizando la conexión y la base de modelos del backend receptor. Preparar una migración compatible con su base existente: copiar la clase no crea la tabla. El modelo conserva campos internos, como responsable del cambio, que no aparecen todos en la API.
+
+La migración `0006_simplify_games` retira los campos de imágenes, orden manual y metadatos de accesibilidad sin uso. Conserva las fichas y demás campos. Los estilos y controles accesibles de los juegos se mantienen.
+
+## 2. Schemas: qué datos acepta y devuelve
+
+Archivo: [app/schemas/games_apps.py]
+
+Los schemas validan los datos enviados y definen la respuesta. No crean tablas.
+
+| Clase | Para qué sirve |
+|---|---|
+| `GameAppBase` | Define los campos comunes y sus reglas. |
+| `GameAppCreate` | Recibe los datos para crear una ficha. |
+| `GameAppUpdate` | Recibe los campos que se quieren modificar; los no enviados se conservan. No permite cambiar `slug`. |
+| `GameAppOut` | Devuelve la ficha con su UUID y fechas. |
+
+Por ejemplo, el título debe tener entre 2 y 150 caracteres; `min_tier` admite `gratuito`, `dorado` o `platino`.
+
+**Para integrar:** incorporar estos schemas y mantener los nombres de campos para que la consola pueda seguir comunicándose con la API.
+
+## 3. Routers: qué operaciones permite
+
+Archivo: [app/routers/games_apps.py]
+
+El router recibe la solicitud, valida con el schema, comprueba permisos y consulta o modifica el modelo.
+
+Base actual: **`/api/v1/admin/games-apps`**.
+
+| Método y ruta | Función | Acceso |
+|---|---|---|
+| GET `/` | Listar fichas; filtros `item_type` e `is_active`. | Todos los roles internos autenticados. |
+| GET `/active` | Listar solo fichas activas. | Público actualmente. |
+| POST `/` | Crear ficha. | admin/editor. |
+| PUT `/{id}` | Editar los campos enviados. | admin/editor. |
+| POST `/{id}/toggle` | Activar o desactivar: invierte el estado. | admin/editor. |
+| DELETE `/{id}` | Eliminar permanentemente la ficha. | admin/editor. |
+
+Los listados devuelven un **array JSON directo**, sin paginación ni envoltorio `items`. Desactivar retira la ficha del listado activo, pero el HTML sigue público. Eliminar la ficha no elimina archivos. El plan `min_tier` no comprueba por sí mismo la suscripción del usuario.
+
+**Para integrar:** adaptar también las dependencias del router:
+
+| Archivo | Responsabilidad |
+|---|---|
+| `app/database.py` | Sesión de base de datos y transacciones con `get_db`. |
+| `app/deps.py` y `app/enums.py` | Autenticación y permisos con `require`. |
+| `app/audit.py` | Registrar creación, edición, eliminación y cambio de estado. |
+| `app/config.py` | Configuración, incluida la dirección pública de juegos. |
+
+Conservar estas comprobaciones al adaptar el código. Las cuentas y tokens administrativos son distintos de los de pacientes o cuidadores del móvil.
+
+## 4. Juegos: dónde están los archivos
+
+Carpeta: [app/static/juegos]
+
+Contiene **20 juegos**, cada uno con su HTML, estilos, lógica y recursos. `compartido` contiene recursos utilizados por varios juegos.
+
+
+
+
+///////////////////////////////////////////////////
+
 
 Backend de la **Consola de Administración** de AgeCare (Wellq Co).
 FastAPI · Python 3.12 · SQLAlchemy 2 async · PostgreSQL 16 · Alembic.
