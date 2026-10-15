@@ -1,0 +1,3 @@
+/* La base visual está en compartido/css/accesibilidad.css y nuevos.css. */
+.objetos-contar { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; max-width: 400px; margin: auto; }
+.objeto { font-size: 33px; padding: 10px 2px; min-width: 56px; }

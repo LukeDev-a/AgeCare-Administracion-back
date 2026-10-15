@@ -1,0 +1,2 @@
+/* La base visual está en compartido/css/accesibilidad.css y nuevos.css. */
+.reloj { display: block; width: min(100%, 330px); margin: 0 auto; }

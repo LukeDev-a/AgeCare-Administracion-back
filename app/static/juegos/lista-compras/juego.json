@@ -1,0 +1,7 @@
+{
+  "id": "lista-compras",
+  "nombre": "Mi lista de compras",
+  "icono": "game",
+  "entrada": "index.html",
+  "descripcion_corta": "Recuerda una lista y encuentra sus productos."
+}

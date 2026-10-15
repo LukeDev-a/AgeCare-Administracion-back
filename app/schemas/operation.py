@@ -2,7 +2,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
 from app.enums import (CaregiverStatus, ContentStatus, ContentType, ModerationItemType,
                        ModerationStatus, RejectReason)
@@ -15,6 +15,15 @@ class ContentItemOut(BaseModel):
     title: str
     body: str
     audio_available: bool
+    audio_status: str = "pending"
+    audio_error: str | None = None
+    audio_url: str | None = None
+    text_version: int = 1
+    approved_version: int | None = None
+    reviewed_by_name: str | None = None
+    reviewed_at: datetime | None = None
+    source_candidate_id: UUID | None = None
+    provenance: dict | None = None
     tags: list[str]
     status: ContentStatus
     publish_at: datetime | None
@@ -24,6 +33,7 @@ class ContentItemOut(BaseModel):
 
 
 class ContentCreateIn(BaseModel):
+    model_config = {'extra': 'forbid', 'str_strip_whitespace': True}
     type: ContentType
     title: str = Field(min_length=3, max_length=160)
     body: str = Field(min_length=10, max_length=4000)
@@ -32,10 +42,18 @@ class ContentCreateIn(BaseModel):
 
 
 class ContentPatchIn(BaseModel):
+    model_config = {'extra': 'forbid', 'str_strip_whitespace': True}
     title: str | None = Field(default=None, min_length=3, max_length=160)
     body: str | None = Field(default=None, min_length=10, max_length=4000)
     tags: list[str] | None = Field(default=None, max_length=10)
     publish_at: datetime | None = None
+
+
+    @model_validator(mode='after')
+    def reject_null_text(self):
+        if any(getattr(self, field) is None for field in self.model_fields_set - {'publish_at'}):
+            raise ValueError('Solo la programación admite null para quitar la fecha.')
+        return self
 
 
 # ---- Marketplace ----

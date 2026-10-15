@@ -1,0 +1,72 @@
+[
+  {
+    "slug": "domino",
+    "title": "Dominó tranquilo",
+    "description": "Une fichas con números iguales, a tu ritmo.",
+    "category": "Dominó",
+    "target_url": "/static/juegos/domino/index.html"
+  },
+  {
+    "slug": "lista-compras",
+    "title": "Mi lista de compras",
+    "description": "Recuerda una lista y encuentra sus productos.",
+    "category": "Memoria",
+    "target_url": "/static/juegos/lista-compras/index.html"
+  },
+  {
+    "slug": "palabras-silabas",
+    "title": "Palabras por sílabas",
+    "description": "Construye palabras tocando sus sílabas.",
+    "category": "Lenguaje",
+    "target_url": "/static/juegos/palabras-silabas/index.html"
+  },
+  {
+    "slug": "cada-cosa",
+    "title": "Cada cosa en su lugar",
+    "description": "Elige el grupo al que pertenece cada objeto.",
+    "category": "Asociación",
+    "target_url": "/static/juegos/cada-cosa/index.html"
+  },
+  {
+    "slug": "camino-casa",
+    "title": "Camino a casa",
+    "description": "Encuentra un camino en un laberinto diferente en cada ronda.",
+    "category": "Orientación",
+    "target_url": "/static/juegos/camino-casa/index.html"
+  },
+  {
+    "slug": "continua-patron",
+    "title": "Continúa el patrón",
+    "description": "Descubre qué figura sigue en la serie.",
+    "category": "Lógica",
+    "target_url": "/static/juegos/continua-patron/index.html"
+  },
+  {
+    "slug": "reloj",
+    "title": "Pon el reloj en hora",
+    "description": "Ajusta las agujas para representar la hora indicada.",
+    "category": "Vida cotidiana",
+    "target_url": "/static/juegos/reloj/index.html"
+  },
+  {
+    "slug": "cuenta-elige",
+    "title": "Cuenta y elige",
+    "description": "Cuenta los objetos y elige su cantidad.",
+    "category": "Atención",
+    "target_url": "/static/juegos/cuenta-elige/index.html"
+  },
+  {
+    "slug": "tres-raya",
+    "title": "Tres en raya",
+    "description": "Forma una línea de tres símbolos sin prisa.",
+    "category": "Estrategia",
+    "target_url": "/static/juegos/tres-raya/index.html"
+  },
+  {
+    "slug": "mi-paisaje",
+    "title": "Mi paisaje",
+    "description": "Construye una escena colocando elementos a tu gusto.",
+    "category": "Creatividad",
+    "target_url": "/static/juegos/mi-paisaje/index.html"
+  }
+]

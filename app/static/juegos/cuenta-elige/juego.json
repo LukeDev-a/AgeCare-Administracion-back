@@ -1,0 +1,7 @@
+{
+  "id": "cuenta-elige",
+  "nombre": "Cuenta y elige",
+  "icono": "game",
+  "entrada": "index.html",
+  "descripcion_corta": "Cuenta los objetos y elige su cantidad."
+}

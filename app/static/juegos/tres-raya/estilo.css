@@ -1,0 +1,6 @@
+/* La base visual está en compartido/css/accesibilidad.css y nuevos.css. */
+.tres-tablero { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 360px; margin: auto; }
+.casilla-tres { min-height: 80px; min-width: 56px; font-size: 42px; color: var(--color-acento); }
+.casilla-tres:disabled { opacity: 1; }
+.modo { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; justify-content: center; }
+.modo select { font: inherit; min-height: 56px; padding: 10px; max-width: 100%; }

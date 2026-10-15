@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tres en raya — AgeCare</title>
+<link rel="stylesheet" href="../compartido/css/accesibilidad.css">
+<link rel="stylesheet" href="../compartido/css/nuevos.css">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<main>
+<h1 class="titulo-juego">Tres en raya</h1>
+<p id="instruccion" class="instruccion"></p>
+<section class="zona-juego" aria-label="Tres en raya">
+<div id="tablero"></div>
+<div id="controles" class="controles" aria-label="Controles del juego"></div>
+</section>
+<p id="mensaje" class="aviso" role="status" aria-live="polite" aria-atomic="true"></p>
+<div class="controles"><button id="nueva" class="boton-grande secundario" type="button">Nueva partida</button></div>
+<noscript>Este juego necesita JavaScript para funcionar.</noscript>
+</main>
+<script src="../compartido/js/nuevos-core.js"></script>
+<script src="script.js"></script>
+</body>
+</html>

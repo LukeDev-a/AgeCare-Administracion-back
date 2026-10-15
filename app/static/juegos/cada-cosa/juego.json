@@ -1,0 +1,7 @@
+{
+  "id": "cada-cosa",
+  "nombre": "Cada cosa en su lugar",
+  "icono": "game",
+  "entrada": "index.html",
+  "descripcion_corta": "Elige el grupo al que pertenece cada objeto."
+}

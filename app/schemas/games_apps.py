@@ -9,10 +9,7 @@ class GameAppBase(BaseModel):
     description: Optional[str] = None
     item_type: Literal["game", "app"] = "game"
     category: str = Field(..., max_length=80)
-    icon_url: Optional[str] = None
-    banner_url: Optional[str] = None
     target_url: Optional[str] = None
-    preview_image_url: Optional[str] = None  # <-- AGREGADO: Para que el frontend reciba la imagen
     is_active: bool = True
     min_tier: Literal["gratuito", "dorado", "platino"] = "gratuito"
     featured: bool = False
@@ -25,10 +22,7 @@ class GameAppUpdate(BaseModel):
     description: Optional[str] = None
     item_type: Optional[Literal["game", "app"]] = None
     category: Optional[str] = Field(None, max_length=80)
-    icon_url: Optional[str] = None
-    banner_url: Optional[str] = None
     target_url: Optional[str] = None
-    preview_image_url: Optional[str] = None  # <-- AGREGADO: Para permitir actualizar la imagen
     is_active: Optional[bool] = None
     min_tier: Optional[Literal["gratuito", "dorado", "platino"]] = None
     featured: Optional[bool] = None

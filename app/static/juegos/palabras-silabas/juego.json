@@ -1,0 +1,7 @@
+{
+  "id": "palabras-silabas",
+  "nombre": "Palabras por sílabas",
+  "icono": "game",
+  "entrada": "index.html",
+  "descripcion_corta": "Construye palabras tocando sus sílabas."
+}

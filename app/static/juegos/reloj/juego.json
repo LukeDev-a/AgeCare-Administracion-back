@@ -1,0 +1,7 @@
+{
+  "id": "reloj",
+  "nombre": "Pon el reloj en hora",
+  "icono": "game",
+  "entrada": "index.html",
+  "descripcion_corta": "Ajusta las agujas para representar la hora indicada."
+}

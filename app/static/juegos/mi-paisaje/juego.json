@@ -1,0 +1,7 @@
+{
+  "id": "mi-paisaje",
+  "nombre": "Mi paisaje",
+  "icono": "game",
+  "entrada": "index.html",
+  "descripcion_corta": "Construye una escena colocando elementos a tu gusto."
+}

@@ -1,0 +1,7 @@
+{
+  "id": "domino",
+  "nombre": "Dominó tranquilo",
+  "icono": "game",
+  "entrada": "index.html",
+  "descripcion_corta": "Une fichas con números iguales, a tu ritmo."
+}

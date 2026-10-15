@@ -1,0 +1,12 @@
+/* La base visual está en compartido/css/accesibilidad.css y nuevos.css. */
+.laberinto { display: grid; grid-template-columns: repeat(4, 1fr); max-width: 400px; margin: auto; border: 3px solid #34454e; }
+.casilla-laberinto { aspect-ratio: 1; min-width: 56px; min-height: 56px; padding: 0; background: #fffbea; border: 3px solid transparent; color: #143950; font-size: 38px; cursor: pointer; }
+.pared-arriba { border-top-color: #34454e; }
+.pared-abajo { border-bottom-color: #34454e; }
+.pared-izquierda { border-left-color: #34454e; }
+.pared-derecha { border-right-color: #34454e; }
+.persona { background: #d6eaff; }
+.casa { color: #3b6d11; font-weight: bold; }
+.pista-camino { background: #fff0bd; }
+.casilla-laberinto:focus-visible { outline: 4px solid #9b4f00; outline-offset: -7px; }
+.leyenda { font-size: 19px; }

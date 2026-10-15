@@ -1,0 +1,7 @@
+{
+  "id": "tres-raya",
+  "nombre": "Tres en raya",
+  "icono": "game",
+  "entrada": "index.html",
+  "descripcion_corta": "Forma una línea de tres símbolos sin prisa."
+}

@@ -1,0 +1,2 @@
+/* La base visual está en compartido/css/accesibilidad.css y nuevos.css. */
+.lista-productos { list-style: none; padding: 0; text-align: center; font-size: 28px; line-height: 2; }

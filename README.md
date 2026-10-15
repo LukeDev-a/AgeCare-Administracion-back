@@ -3,8 +3,9 @@
 Backend de la **Consola de Administración** de AgeCare (Wellq Co).
 FastAPI · Python 3.12 · SQLAlchemy 2 async · PostgreSQL 16 · Alembic.
 
-Implementa los 45 endpoints de la *Especificación de Endpoints — Consola de
-Administración v1*: autenticación de staff con MFA, las cuatro secciones
+Para entregar e integrar administración, catálogo y los diez juegos, usar el [README de integración del workspace](../../README.md). Incluye contratos reales, carga sin seed y WebView; el catálogo activo devuelve un array y los estáticos son públicos.
+
+Contiene autenticación de staff con MFA, las cuatro secciones
 analíticas del wireframe (uso comercial, estado operativo, usuarios y soporte,
 uso por funcionalidad) y los módulos de operación (tickets, curación de
 contenido, catálogos del marketplace, moderación, configuración, legales y
@@ -16,7 +17,7 @@ auditoría).
 docker compose up --build
 ```
 
-Levanta PostgreSQL, aplica la migración, siembra datos demo y sirve la API en
+Levanta PostgreSQL, aplica las migraciones sin sembrar datos y sirve la API en
 `http://localhost:8000`. Documentación interactiva (Swagger):
 `http://localhost:8000/api/v1/admin/docs`.
 
@@ -25,11 +26,13 @@ Levanta PostgreSQL, aplica la migración, siembra datos demo y sirve la API en
 ```bash
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-cp .env.example .env                  # ajusta ADMIN_DATABASE_URL si hace falta
+# Crear .env desde ejemplo solo si no existe; conservar secretos de instalaciones existentes.
 alembic upgrade head                  # crea las tablas
-python -m scripts.seed                # datos demo del wireframe
+# No ejecutar scripts.seed sobre datos existentes: es destructivo.
 uvicorn app.main:app --reload
 ```
+
+Configura ADMIN_DATABASE_URL y las demás variables necesarias antes de ejecutar Alembic. Una base nueva no recibe cuentas automáticamente: acordar el alta inicial controlada del primer admin. No resolverlo ejecutando el seed en una base existente.
 
 ## Credenciales demo (seed)
 
@@ -137,5 +140,4 @@ tests/             pytest + httpx (asyncio)
   contra el JSON Schema de cada parámetro.
 - **Auditoría de cambios de negocio confirmados**, con
   campos sensibles enmascarados.
-- Los puntos donde en producción se integraría push, TTS o webhooks
-  están marcados con comentarios en el código.
+- Push/webhooks requieren verificar sus integraciones. TTS y pipeline editorial de fase 10 tienen código nuevo, con worker deshabilitado por defecto y validación real pendiente: [contenido-editorial.md](docs/contenido-editorial.md).

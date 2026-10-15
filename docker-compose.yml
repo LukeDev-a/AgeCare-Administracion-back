@@ -17,6 +17,8 @@ services:
 
   api:
     build: .
+    volumes:
+      - content_audio:/srv/app/content_audio
     env_file:
       - .env
     depends_on:
@@ -33,3 +35,4 @@ services:
 
 volumes:
   pgdata:
+  content_audio:

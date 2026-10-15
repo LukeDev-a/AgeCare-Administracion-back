@@ -307,6 +307,17 @@ class ContentItem(Base):
     tags: Mapped[list] = mapped_column(PortableJSON, default=list)
     status: Mapped[str] = mapped_column(String(12), index=True, default="draft")
     tts_ready: Mapped[bool] = mapped_column(Boolean, default=False)
+    text_version: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
+    audio_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    audio_file: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    audio_status: Mapped[str] = mapped_column(String(20), default="pending", server_default="pending")
+    audio_error: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    source_candidate_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    provenance: Mapped[dict | None] = mapped_column(PortableJSON, nullable=True)
+    approved_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    reviewed_by_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     publish_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -315,6 +326,55 @@ class ContentItem(Base):
     created_at: Mapped[datetime] = ts_now()
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
                                                  onupdate=func.now())
+
+
+class NewsCandidate(Base):
+    __tablename__ = "news_candidates"
+    __table_args__ = (UniqueConstraint("source", "external_id"),)
+    id: Mapped[uuid.UUID] = pk()
+    source: Mapped[str] = mapped_column(String(80))
+    external_id: Mapped[int] = mapped_column(Integer)
+    title: Mapped[str] = mapped_column(Text)
+    original_text: Mapped[str] = mapped_column(Text)
+    source_url: Mapped[str] = mapped_column(Text)
+    author: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    source_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_modified: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_hash: Mapped[str] = mapped_column(String(64))
+    source_changed: Mapped[bool] = mapped_column(Boolean, default=False)
+    rights_status: Mapped[str] = mapped_column(String(20), default="uncertain")
+    rights_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="pending")
+    classification: Mapped[str | None] = mapped_column(Text, nullable=True)
+    editorial_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    adaptation: Mapped[dict | None] = mapped_column(PortableJSON, nullable=True)
+    item_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    created_at: Mapped[datetime] = ts_now()
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ContentJob(Base):
+    __tablename__ = "content_jobs"
+    id: Mapped[uuid.UUID] = pk()
+    kind: Mapped[str] = mapped_column(String(16))  # collect | adapt | tts | tts_retry
+    target_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="queued")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now().astimezone())
+    created_at: Mapped[datetime] = ts_now()
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    result: Mapped[dict | None] = mapped_column(PortableJSON, nullable=True)
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    actor_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+
+class ContentControl(Base):
+    __tablename__ = "content_control"
+    key: Mapped[str] = mapped_column(String(60), primary_key=True)
+    data: Mapped[dict] = mapped_column(PortableJSON, default=dict)
 
 
 class CaregiverProfile(Base):
@@ -424,20 +484,13 @@ class GameApp(Base):
     item_type: Mapped[str] = mapped_column(String(20), index=True, default="game")  # game | app
     category: Mapped[str] = mapped_column(String(80), index=True)
  
-    # Recursos visuales y de ejecución
-    icon_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    banner_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    preview_image_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # Dirección de ejecución
     target_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
  
-    # Publicación y orden
+    # Publicación
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     featured: Mapped[bool] = mapped_column(Boolean, default=False)
     min_tier: Mapped[str] = mapped_column(String(50), default="gratuito")
-    sort_order: Mapped[int] = mapped_column(Integer, default=0, index=True)
- 
-    # Metadatos de accesibilidad (se llenan desde juego.json)
-    accessibility: Mapped[dict | None] = mapped_column(PortableJSON, nullable=True)
  
     # Auditoría y borrado lógico
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -1,0 +1,6 @@
+/* La base visual está en compartido/css/accesibilidad.css y nuevos.css. */
+.paisaje { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); max-width: 560px; margin: auto; padding: 6px; border-radius: 16px; border: 2px solid #496651; background: linear-gradient(#d6edff 0 33%, #dbebc2 33% 100%); }
+.paisaje.playa { background: linear-gradient(#dbf2ff 0 33%, #afe1ea 33% 66%, #ffedc8 66% 100%); }
+.paisaje.campo { background: linear-gradient(#d6edff 0 33%, #d9e9a9 33% 66%, #cee0a0 66% 100%); }
+.espacio-paisaje { min-height: 68px; min-width: 56px; border: 1px dashed #59785c; border-radius: 8px; padding: 0; background: transparent; font-size: 39px; color: #496651; cursor: pointer; }
+.espacio-paisaje:focus-visible { outline: 4px solid #185fa5; outline-offset: -5px; }

@@ -1,0 +1,29 @@
+/* Extensión compartida: no altera el diseño de los diez juegos anteriores. */
+[hidden] { display: none !important; }
+main { max-width: 760px; margin: auto; }
+.instruccion { text-align: center; line-height: 1.6; max-width: 640px; margin: 0 auto 20px; }
+.zona-juego { background: #fff; border: 2px solid var(--color-acento-suave); border-radius: var(--radio-borde); padding: 20px; }
+.controles, .opciones, .fichas, .paleta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 20px; }
+.boton-grande { touch-action: manipulation; line-height: 1.35; }
+.boton-grande:disabled { opacity: .65; cursor: default; }
+.boton-grande[aria-pressed="true"], .seleccion { outline: 4px solid #9b4f00; outline-offset: 3px; }
+.secundario { background: #fff; color: var(--color-acento); border: 2px solid var(--color-acento); }
+.tarjeta { background: #fff; color: var(--color-texto); border: 2px solid #5a6b75; border-radius: 14px; min-height: 80px; min-width: 80px; padding: 14px; font: inherit; font-size: 20px; cursor: pointer; touch-action: manipulation; }
+.tarjeta:focus-visible { outline: 4px solid #185fa5; outline-offset: 3px; }
+.tarjeta[aria-pressed="true"], .marcada { border-color: var(--color-exito); background: var(--color-exito-suave); }
+.tarjeta:disabled { cursor: default; }
+.rejilla { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; }
+.icono { display: block; font-size: 38px; line-height: 1.5; }
+.aviso { text-align: center; min-height: 66px; padding: 16px; font-size: 21px; line-height: 1.5; margin: 16px 0; border-radius: 12px; }
+.acierto { background: var(--color-exito-suave); color: #294c0c; font-weight: 600; }
+.texto-central { text-align: center; font-size: 23px; line-height: 1.6; }
+.pieza { display: inline-block; padding: 10px 14px; border: 2px solid #5a6b75; border-radius: 12px; margin: 4px; font-size: 28px; background: #fff; }
+.destacado { padding: 16px; text-align: center; border-radius: 14px; background: var(--color-acento-suave); }
+.boton-grande:hover { filter: brightness(.95); }
+@media(max-width: 450px) {
+  body { padding: 16px 12px; }
+  .titulo-juego { font-size: 28px; }
+  .zona-juego { padding: 12px; }
+  .controles .boton-grande { flex: 1 1 130px; }
+}
+@media(prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }

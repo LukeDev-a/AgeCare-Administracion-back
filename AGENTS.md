@@ -15,6 +15,8 @@ Lee [docs/CONTEXTO-TECNICO.md](docs/CONTEXTO-TECNICO.md) y [docs/invitaciones-mf
 
 ## Verificación
 
+Para contenido de fase 10 lee [contenido-editorial.md](docs/contenido-editorial.md). Worker apagado por defecto; no habilitar ni consumir Gemini real como efecto lateral de pruebas. Migración 0004 y volumen content_audio conservan datos; no sustituir modelos elegidos ni afirmar gratuidad sin proyecto gratuito. Feed de referencia protegido no debe abrir credenciales admin a pacientes.
+
 Desde esta carpeta, en PowerShell y con dependencias disponibles:
 
 ```powershell

@@ -1,0 +1,4 @@
+/* La base visual está en compartido/css/accesibilidad.css y nuevos.css. */
+.serie { padding: 0; margin: 0; list-style: none; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+.figura { width: 110px; min-height: 90px; padding: 10px 5px; background: var(--color-acento-suave); border: 2px solid var(--color-acento); border-radius: 12px; text-align: center; font-size: 18px; }
+.interrogacion { display: grid; place-items: center; font-size: 42px; background: #fff4d6; border-style: dashed; }

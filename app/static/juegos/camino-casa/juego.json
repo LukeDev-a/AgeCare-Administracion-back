@@ -1,0 +1,7 @@
+{
+  "id": "camino-casa",
+  "nombre": "Camino a casa",
+  "icono": "game",
+  "entrada": "index.html",
+  "descripcion_corta": "Encuentra un camino en un laberinto diferente en cada ronda."
+}

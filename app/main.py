@@ -8,9 +8,15 @@ from app.invitation_mail import mail_worker
 @asynccontextmanager
 async def lifespan(app):
     worker = asyncio.create_task(mail_worker()) if get_settings().mail_worker_enabled else None
+    from app.content_pipeline import content_worker
+    editorial_worker = asyncio.create_task(content_worker()) if get_settings().content_worker_enabled else None
     try:
         yield
     finally:
+        if editorial_worker:
+            editorial_worker.cancel()
+            with suppress(asyncio.CancelledError):
+                await editorial_worker
         if worker:
             worker.cancel()
             with suppress(asyncio.CancelledError):
@@ -59,6 +65,8 @@ api.include_router(metrics_roles.router)
 api.include_router(support.router)
 api.include_router(metrics_features.router)
 api.include_router(content.router)
+from app.routers import content_candidates
+api.include_router(content_candidates.router)
 api.include_router(marketplace.router)
 api.include_router(moderation.router)
 api.include_router(games_apps.router)

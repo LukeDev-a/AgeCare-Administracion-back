@@ -1,0 +1,7 @@
+{
+  "id": "continua-patron",
+  "nombre": "Continúa el patrón",
+  "icono": "game",
+  "entrada": "index.html",
+  "descripcion_corta": "Descubre qué figura sigue en la serie."
+}

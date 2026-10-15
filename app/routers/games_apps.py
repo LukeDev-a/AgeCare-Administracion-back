@@ -9,17 +9,29 @@ from app.deps import require
 from app.audit import audit
 from app.models import GameApp
 from app.schemas.games_apps import GameAppCreate, GameAppUpdate, GameAppOut
+from app.config import get_settings
 
 router = APIRouter(prefix="/games-apps", tags=["Juegos y Apps"])
+
+
+def game_out(item, request: Request):
+    data = GameAppOut.model_validate(item)
+    base = (get_settings().game_public_base_url or str(request.base_url)).rstrip('/')
+    for field in ('target_url',):
+        value = getattr(data, field)
+        if value and value.startswith('/') and not value.startswith('//'):
+            setattr(data, field, base + value)
+    return data
 
 
 def snapshot(item: GameApp) -> dict:
     return {field: getattr(item, field) for field in (
         "title", "slug", "description", "item_type", "category", "min_tier", "is_active",
-        "featured", "target_url", "icon_url", "banner_url", "preview_image_url", "sort_order")}
+        "featured", "target_url")}
 
 @router.get("/", response_model=List[GameAppOut])
 async def list_games_apps(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     item_type: Optional[str] = Query(None),
     is_active: Optional[bool] = Query(None),
@@ -32,11 +44,12 @@ async def list_games_apps(
         stmt = stmt.where(GameApp.is_active == is_active)
     
     result = await db.execute(stmt.order_by(GameApp.created_at.desc()))
-    return result.scalars().all()
+    return [game_out(item, request) for item in result.scalars().all()]
 
 # --- NUEVA RUTA PARA SOLUCIONAR EL ERROR 405 ---
 @router.get("/active", response_model=List[GameAppOut])
 async def list_active_games_apps(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     item_type: Optional[str] = Query(None),
     #current_admin = Depends(get_current_admin)
@@ -46,7 +59,7 @@ async def list_active_games_apps(
         stmt = stmt.where(GameApp.item_type == item_type)
     
     result = await db.execute(stmt.order_by(GameApp.created_at.desc()))
-    return result.scalars().all()
+    return [game_out(item, request) for item in result.scalars().all()]
 # -----------------------------------------------
 
 @router.post("/", response_model=GameAppOut, status_code=status.HTTP_201_CREATED)
@@ -71,7 +84,7 @@ async def create_game_app(
     await db.flush()
     await db.refresh(new_item)
     await audit(db, request, "games.create", "game_app", new_item.id, after=snapshot(new_item))
-    return new_item
+    return game_out(new_item, request)
 
 @router.put("/{item_id}", response_model=GameAppOut)
 async def update_game_app(
@@ -95,7 +108,7 @@ async def update_game_app(
     after = snapshot(item)
     if before != after:
         await audit(db, request, "games.update", "game_app", item.id, before=before, after=after)
-    return item
+    return game_out(item, request)
 
 @router.post("/{item_id}/toggle", response_model=GameAppOut)
 async def toggle_game_app(
@@ -119,7 +132,7 @@ async def toggle_game_app(
     await db.refresh(item)
     await audit(db, request, "games.activate" if item.is_active else "games.deactivate", "game_app", item.id,
                 before=before, after={"is_active": item.is_active, "title": item.title, "slug": item.slug})
-    return item
+    return game_out(item, request)
 
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_game_app(
