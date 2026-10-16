@@ -8,4 +8,3 @@ venv/
 !.env.example
 .venv/
 content_audio/
-.env.example

@@ -1,4 +1,8 @@
 # AgeCare — Admin API
+
+## Primer acceso en una instalación local nueva
+
+Para crear las cuatro cuentas iniciales de desarrollo sin borrar datos, configurar en el `.env` del backend `ADMIN_ENVIRONMENT=dev` y `ADMIN_BOOTSTRAP_DEV_ACCOUNTS=true`, conservar una `ADMIN_ENCRYPTION_KEY` válida y ejecutar `docker compose up -d --build api`. Solo actúa si no hay ninguna cuenta; no sobrescribe cuentas existentes. Admin entra primero a configurar su MFA. Ver [credenciales, pasos y alcance](docs/cuentas-iniciales-desarrollo.md). No usar estas credenciales públicas en producción.
 ///////////////////////////////////////////////////////////
 # AgeCare — Guía simple de integración
 
@@ -119,7 +123,7 @@ alembic upgrade head                  # crea las tablas
 uvicorn app.main:app --reload
 ```
 
-Configura ADMIN_DATABASE_URL y las demás variables necesarias antes de ejecutar Alembic. Una base nueva no recibe cuentas automáticamente: acordar el alta inicial controlada del primer admin. No resolverlo ejecutando el seed en una base existente.
+Configura ADMIN_DATABASE_URL y las demás variables necesarias antes de ejecutar Alembic. Las migraciones no crean cuentas. En desarrollo puede habilitarse la carga inicial no destructiva descrita arriba; en producción se requiere alta inicial controlada con credenciales propias. No resolverlo ejecutando el seed en una base existente.
 
 ## Credenciales demo (seed)
 
