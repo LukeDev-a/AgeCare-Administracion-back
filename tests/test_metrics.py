@@ -5,7 +5,9 @@ BASE = "/api/v1/admin"
 pytestmark = pytest.mark.asyncio
 
 
-async def test_commercial_summary(client, analyst_headers):
+async def test_commercial_summary(client, analyst_headers, monkeypatch):
+    from scripts.seed import TODAY
+    monkeypatch.setattr('app.periods.business_today', lambda: TODAY)
     r = await client.get(f"{BASE}/metrics/commercial/summary",
                          params={"period": "current_month"}, headers=analyst_headers)
     assert r.status_code == 200
@@ -20,10 +22,11 @@ async def test_commercial_summary_invalid_period(client, analyst_headers):
     r = await client.get(f"{BASE}/metrics/commercial/summary",
                          params={"period": "quincena"}, headers=analyst_headers)
     assert r.status_code == 422
+    assert r.json()['error']['code'] == 'INVALID_PERIOD'
 
 
 async def test_registrations_contract(client, analyst_headers):
-    for period in ("today", "last_7_days", "ytd"):
+    for period in ("today", "current_week", "last_7_days", "current_month", "last_30_days", "ytd", "last_12_months"):
         r = await client.get(f"{BASE}/metrics/commercial/registrations",
                              params={"period": period}, headers=analyst_headers)
         assert r.status_code == 200

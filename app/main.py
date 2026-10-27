@@ -10,9 +10,15 @@ async def lifespan(app):
     worker = asyncio.create_task(mail_worker()) if get_settings().mail_worker_enabled else None
     from app.content_pipeline import content_worker
     editorial_worker = asyncio.create_task(content_worker()) if get_settings().content_worker_enabled else None
+    from app.commercial_analytics import commercial_worker
+    metrics_worker = asyncio.create_task(commercial_worker()) if get_settings().commercial_worker_enabled else None
     try:
         yield
     finally:
+        if metrics_worker:
+            metrics_worker.cancel()
+            with suppress(asyncio.CancelledError):
+                await metrics_worker
         if editorial_worker:
             editorial_worker.cancel()
             with suppress(asyncio.CancelledError):

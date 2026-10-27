@@ -50,6 +50,13 @@ class Assignee(BaseModel):
     name: str
 
 
+class SupportAgentOut(BaseModel):
+    id: UUID
+    full_name: str
+
+    model_config = {"from_attributes": True}
+
+
 class TicketOut(BaseModel):
     id: UUID
     number: int

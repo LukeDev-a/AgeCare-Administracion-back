@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     app_name: str = "AgeCare Admin API"
     environment: str = "dev"  # dev | staging | prod
     bootstrap_dev_accounts: bool = False  # alta inicial explícita, solo desarrollo
+    seed_demo_enabled: bool = False  # Compose dev lo habilita; nunca borra datos
+    commercial_worker_enabled: bool = True  # solo cálculo local; sin proveedores externos
     allows_origins: str
     database_url: str = "postgresql+asyncpg://agecare:agecare@localhost:5432/agecare_admin"
 

@@ -1,0 +1,602 @@
+// Modelo físico del backend administrativo AgeCare. Fuente: app/models.py.
+// No consulta registros, secretos, una base desplegada ni la app Flutter.
+// Solo Ref declara ForeignKey reales. UUID sin FK conserva su independencia.
+// default representa valores del servidor; los defaults Python se explican en notas.
+Project AgeCare_Admin {
+  database_type: 'PostgreSQL'
+  Note: 'Estructura ORM actual. No incluye alembic_version ni tablas de otra API móvil.'
+}
+
+Table admin_users {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  full_name varchar(120) [not null]
+  email varchar(254) [not null]
+  password_hash varchar(255) [null]
+  role varchar(20) [not null]
+  is_active boolean [not null, note: 'Valor inicial asignado por Python: True']
+  mfa_enabled boolean [not null, note: 'Valor inicial asignado por Python: False']
+  mfa_secret varchar(512) [null]
+  mfa_required boolean [not null, default: false]
+  mfa_last_step integer [null]
+  auth_version integer [not null, default: 0]
+  recovery_hashes jsonb [null]
+  invitation_cancelled_at timestamptz [null]
+  invitation_delivery_status varchar(20) [null]
+  failed_attempts integer [not null, note: 'Valor inicial asignado por Python: 0']
+  failed_attempt_times jsonb [null]
+  locked_until timestamptz [null]
+  invitation_expires_at timestamptz [null]
+  last_login_at timestamptz [null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    email [unique, name: 'ix_admin_users_email']
+  }
+}
+
+Table admin_sessions {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  admin_id uuid [not null]
+  refresh_hash varchar(64) [not null]
+  expires_at timestamptz [not null]
+  revoked_at timestamptz [null]
+  rotated_to uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  created_at timestamptz [not null, default: `now()`]
+  mfa_verified boolean [not null, default: false]
+  auth_version integer [not null, default: 0]
+
+  indexes {
+    admin_id [name: 'ix_admin_sessions_admin_id']
+    refresh_hash [unique, name: 'ix_admin_sessions_refresh_hash']
+  }
+}
+
+Table admin_invitations {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  admin_id uuid [not null]
+  token_hash varchar(64) [not null]
+  expires_at timestamptz [not null]
+  revoked_at timestamptz [null]
+  accepted_at timestamptz [null]
+  secret_encrypted varchar(512) [null]
+  attempts integer [not null, note: 'Valor inicial asignado por Python: 0']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    admin_id [name: 'ix_admin_invitations_admin_id']
+    token_hash [unique, name: 'ix_admin_invitations_token_hash']
+  }
+}
+
+Table invitation_emails {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  invitation_id uuid [not null]
+  payload_encrypted text [null]
+  status varchar(20) [not null, note: 'Valor inicial asignado por Python: queued']
+  attempts integer [not null, note: 'Valor inicial asignado por Python: 0']
+  next_attempt_at timestamptz [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    invitation_id [name: 'ix_invitation_emails_invitation_id']
+  }
+}
+
+Table mfa_enrollments {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  admin_id uuid [not null]
+  token_hash varchar(64) [not null]
+  expires_at timestamptz [not null]
+  used_at timestamptz [null]
+  secret_encrypted varchar(512) [not null]
+  attempts integer [not null, note: 'Valor inicial asignado por Python: 0']
+
+  indexes {
+    admin_id [name: 'ix_mfa_enrollments_admin_id']
+    token_hash [unique, name: 'ix_mfa_enrollments_token_hash']
+  }
+}
+
+Table audit_log {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  actor_id uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  actor_name varchar(120) [null]
+  actor_role varchar(20) [null]
+  action varchar(60) [not null]
+  entity_type varchar(40) [null]
+  entity_id uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  before jsonb [null]
+  after jsonb [null]
+  ip varchar(45) [null]
+  user_agent varchar(300) [null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    action [name: 'ix_audit_log_action']
+    actor_id [name: 'ix_audit_log_actor_id']
+    created_at [name: 'ix_audit_log_created_at']
+    entity_id [name: 'ix_audit_log_entity_id']
+    entity_type [name: 'ix_audit_log_entity_type']
+  }
+}
+
+Table metrics_daily_users {
+  day date [pk, not null]
+  data_origin varchar(12) [not null, default: 'unknown']
+  signups integer [not null, note: 'Valor inicial asignado por Python: 0']
+  cancellations integer [not null, note: 'Valor inicial asignado por Python: 0']
+  downloads integer [not null, note: 'Valor inicial asignado por Python: 0']
+  active_users_eod integer [not null, note: 'Valor inicial asignado por Python: 0']
+  paying_users_eod integer [not null, note: 'Valor inicial asignado por Python: 0']
+  mrr_clp_eod integer [not null, note: 'Valor inicial asignado por Python: 0']
+  computed_at timestamptz [not null, default: `now()`]
+}
+
+Table metrics_hourly_users {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  data_origin varchar(12) [not null, default: 'unknown']
+  ts_hour timestamptz [not null]
+  bucket_minutes integer [not null, default: 60]
+  signups integer [not null, note: 'Valor inicial asignado por Python: 0']
+  cancellations integer [not null, note: 'Valor inicial asignado por Python: 0']
+  computed_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    ts_hour [unique, name: 'ix_metrics_hourly_users_ts_hour']
+  }
+}
+
+Table metrics_plan_snapshot {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  data_origin varchar(12) [not null, default: 'unknown']
+  as_of date [not null]
+  plan_code varchar(12) [not null]
+  users integer [not null]
+  price_clp integer [null]
+  mrr_clp integer [not null, note: 'Valor inicial asignado por Python: 0']
+  monthly_churn float [not null, note: 'Valor inicial asignado por Python: 0.0']
+  computed_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    as_of [name: 'ix_metrics_plan_snapshot_as_of']
+    (as_of, plan_code) [unique]
+  }
+}
+
+Table role_activity_window {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  days_window integer [not null]
+  role varchar(12) [not null]
+  active_users integer [not null]
+  growth_8w float [not null, note: 'Valor inicial asignado por Python: 0.0']
+  sessions_per_week float [not null, note: 'Valor inicial asignado por Python: 0.0']
+  avg_session_seconds integer [not null, note: 'Valor inicial asignado por Python: 0']
+  retention_30d float [not null, note: 'Valor inicial asignado por Python: 0.0']
+  computed_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    days_window [name: 'ix_role_activity_window_days_window']
+    (days_window, role) [unique]
+  }
+}
+
+Table role_weekly_active {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  week_start date [not null]
+  role varchar(12) [not null]
+  active_users integer [not null]
+  computed_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    week_start [name: 'ix_role_weekly_active_week_start']
+    (week_start, role) [unique]
+  }
+}
+
+Table features {
+  feature_key varchar(50) [pk, not null]
+  name varchar(120) [not null]
+  applicable_roles jsonb [not null]
+  expected_low boolean [not null, note: 'Valor inicial asignado por Python: False']
+  note varchar(300) [null]
+  sort_order integer [not null, note: 'Valor inicial asignado por Python: 0']
+}
+
+Table feature_usage_window {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  days_window integer [not null]
+  feature_key varchar(50) [not null]
+  role varchar(12) [not null]
+  users integer [not null]
+  computed_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    days_window [name: 'ix_feature_usage_window_days_window']
+    (days_window, feature_key, role) [unique]
+    feature_key [name: 'ix_feature_usage_window_feature_key']
+  }
+}
+
+Table ops_component_state {
+  data_origin varchar(12) [not null, default: 'unknown']
+  key varchar(30) [pk, not null]
+  status varchar(15) [not null]
+  uptime_30d float [not null, note: 'Valor inicial asignado por Python: 1.0']
+  latency_p50_ms integer [null]
+  latency_p95_ms integer [null]
+  note varchar(200) [null]
+  checked_at timestamptz [not null, default: `now()`]
+}
+
+Table ops_latency_window {
+  data_origin varchar(12) [not null, default: 'unknown']
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  window varchar(4) [not null]
+  component_key varchar(30) [not null]
+  p50_ms integer [not null]
+  p95_ms integer [not null]
+  sample_count integer [not null]
+  computed_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    window [name: 'ix_ops_latency_window_window']
+    (window, component_key) [unique]
+  }
+}
+
+Table ops_critical_process_state {
+  data_origin varchar(12) [not null, default: 'unknown']
+  execution_kind varchar(12) [not null, default: 'unknown']
+  key varchar(40) [pk, not null]
+  name varchar(120) [not null]
+  chain varchar(300) [not null]
+  p95_seconds float [not null]
+  success_24h float [not null]
+  status varchar(15) [not null]
+  computed_at timestamptz [not null, default: `now()`]
+}
+
+Table ops_incidents {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  title varchar(160) [not null]
+  component_key varchar(30) [null]
+  severity varchar(15) [not null]
+  status varchar(15) [not null]
+  description text [not null]
+  resolution text [null]
+  is_maintenance boolean [not null, note: 'Valor inicial asignado por Python: False']
+  started_at timestamptz [not null]
+  resolved_at timestamptz [null]
+  created_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`, note: 'Actualización automática desde SQLAlchemy.']
+
+  indexes {
+    started_at [name: 'ix_ops_incidents_started_at']
+    status [name: 'ix_ops_incidents_status']
+  }
+}
+
+Table support_tickets {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  number integer [not null]
+  subject varchar(160) [not null]
+  description text [not null]
+  requester_user_id uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  requester_name varchar(120) [not null]
+  requester_email varchar(254) [not null]
+  requester_role varchar(12) [null]
+  requester_plan varchar(12) [null]
+  category varchar(20) [not null]
+  priority varchar(10) [not null]
+  status varchar(15) [not null]
+  channel varchar(10) [not null, note: 'Valor inicial asignado por Python: app']
+  assigned_to uuid [null]
+  first_response_at timestamptz [null]
+  resolved_at timestamptz [null]
+  csat_score integer [null]
+  csat_comment text [null]
+  requester_context jsonb [null]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`, note: 'Actualización automática desde SQLAlchemy.']
+
+  indexes {
+    category [name: 'ix_support_tickets_category']
+    created_at [name: 'ix_support_tickets_created_at']
+    number [unique, name: 'ix_support_tickets_number']
+    priority [name: 'ix_support_tickets_priority']
+    requester_email [name: 'ix_support_tickets_requester_email']
+    status [name: 'ix_support_tickets_status']
+  }
+}
+
+Table support_ticket_replies {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  ticket_id uuid [not null]
+  author_type varchar(10) [not null]
+  author_id uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  author_name varchar(120) [not null]
+  body text [not null]
+  internal boolean [not null, note: 'Valor inicial asignado por Python: False']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    created_at [name: 'ix_support_ticket_replies_created_at']
+    ticket_id [name: 'ix_support_ticket_replies_ticket_id']
+  }
+}
+
+Table content_items {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  type varchar(10) [not null]
+  title varchar(160) [not null]
+  body text [not null]
+  tags jsonb [not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  status varchar(12) [not null, note: 'Valor inicial asignado por Python: draft']
+  tts_ready boolean [not null, note: 'Valor inicial asignado por Python: False']
+  text_version integer [not null, default: 1]
+  audio_version integer [null]
+  audio_file varchar(160) [null]
+  audio_status varchar(20) [not null, default: 'pending']
+  audio_error varchar(300) [null]
+  source_candidate_id uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  provenance jsonb [null]
+  approved_version integer [null]
+  reviewed_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  reviewed_by_name varchar(120) [null]
+  reviewed_at timestamptz [null]
+  publish_at timestamptz [null]
+  published_at timestamptz [null]
+  deleted_at timestamptz [null]
+  created_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  created_by_name varchar(120) [null]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`, note: 'Actualización automática desde SQLAlchemy.']
+
+  indexes {
+    status [name: 'ix_content_items_status']
+    type [name: 'ix_content_items_type']
+  }
+}
+
+Table news_candidates {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  source varchar(80) [not null]
+  external_id integer [not null]
+  title text [not null]
+  original_text text [not null]
+  source_url text [not null]
+  author varchar(300) [null]
+  source_date timestamptz [null]
+  source_modified timestamptz [null]
+  source_hash varchar(64) [not null]
+  source_changed boolean [not null, note: 'Valor inicial asignado por Python: False']
+  rights_status varchar(20) [not null, note: 'Valor inicial asignado por Python: uncertain']
+  rights_note text [null]
+  status varchar(20) [not null, note: 'Valor inicial asignado por Python: pending']
+  classification text [null]
+  editorial_note text [null]
+  adaptation jsonb [null]
+  item_id uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`, note: 'Actualización automática desde SQLAlchemy.']
+
+  indexes {
+    (source, external_id) [unique]
+  }
+}
+
+Table content_jobs {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  kind varchar(16) [not null]
+  target_id uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  version integer [null]
+  status varchar(20) [not null, note: 'Valor inicial asignado por Python: queued']
+  attempts integer [not null, note: 'Valor inicial asignado por Python: 0']
+  error varchar(300) [null]
+  available_at timestamptz [not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  created_at timestamptz [not null, default: `now()`]
+  started_at timestamptz [null]
+  finished_at timestamptz [null]
+  result jsonb [null]
+  actor_id uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  actor_name varchar(120) [null]
+}
+
+Table content_control {
+  key varchar(60) [pk, not null]
+  data jsonb [not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+}
+
+Table marketplace_caregivers {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  name varchar(120) [not null]
+  email varchar(254) [not null]
+  zone varchar(80) [not null]
+  specialties jsonb [not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  languages jsonb [not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  certifications_count integer [not null, note: 'Valor inicial asignado por Python: 0']
+  certifications_verified boolean [not null, note: 'Valor inicial asignado por Python: False']
+  rating_avg float [null]
+  reviews_count integer [not null, note: 'Valor inicial asignado por Python: 0']
+  status varchar(12) [not null, note: 'Valor inicial asignado por Python: pending']
+  status_reason text [null]
+  internal_note text [null]
+  submitted_at timestamptz [not null, default: `now()`]
+  reviewed_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  reviewed_by_name varchar(120) [null]
+
+  indexes {
+    status [name: 'ix_marketplace_caregivers_status']
+    zone [name: 'ix_marketplace_caregivers_zone']
+  }
+}
+
+Table marketplace_products {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  name varchar(160) [not null]
+  category varchar(60) [not null]
+  vendor varchar(120) [not null]
+  price_clp integer [null]
+  external_url varchar(500) [not null]
+  image_url varchar(500) [null]
+  status varchar(12) [not null, note: 'Valor inicial asignado por Python: draft']
+  updated_at timestamptz [not null, default: `now()`, note: 'Actualización automática desde SQLAlchemy.']
+
+  indexes {
+    category [name: 'ix_marketplace_products_category']
+    status [name: 'ix_marketplace_products_status']
+  }
+}
+
+Table moderation_queue {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  type varchar(20) [not null]
+  content jsonb [not null]
+  author_user_id uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  author_name varchar(120) [not null]
+  author_role varchar(12) [null]
+  reported_by jsonb [null]
+  report_reason varchar(300) [null]
+  is_safety boolean [not null, note: 'Valor inicial asignado por Python: False']
+  status varchar(10) [not null, note: 'Valor inicial asignado por Python: pending']
+  reject_reason_code varchar(15) [null]
+  decision_note text [null]
+  decided_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  decided_by_name varchar(120) [null]
+  decided_at timestamptz [null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    created_at [name: 'ix_moderation_queue_created_at']
+    status [name: 'ix_moderation_queue_status']
+    type [name: 'ix_moderation_queue_type']
+  }
+}
+
+Table system_settings {
+  key varchar(80) [pk, not null]
+  value jsonb [null]
+  value_schema jsonb [not null]
+  description varchar(300) [not null]
+  version integer [not null, note: 'Valor inicial asignado por Python: 1']
+  updated_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  updated_by_name varchar(120) [null]
+  updated_at timestamptz [null]
+}
+
+Table legal_versions {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  doc_type varchar(10) [not null]
+  semver varchar(10) [not null]
+  content_md text [not null]
+  changelog text [not null]
+  effective_date date [not null]
+  requires_reacceptance boolean [not null, note: 'Valor inicial asignado por Python: False']
+  status varchar(10) [not null, note: 'Valor inicial asignado por Python: draft']
+  published_at timestamptz [null]
+  created_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  created_by_name varchar(120) [null]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`, note: 'Actualización automática desde SQLAlchemy.']
+
+  indexes {
+    doc_type [name: 'ix_legal_versions_doc_type']
+    (doc_type, semver) [unique]
+  }
+}
+
+Table games_apps {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  slug varchar(100) [not null]
+  title varchar(150) [not null]
+  description text [null]
+  item_type varchar(20) [not null, note: 'Valor inicial asignado por Python: game']
+  category varchar(80) [not null]
+  target_url varchar(500) [null]
+  is_active boolean [not null, note: 'Valor inicial asignado por Python: True']
+  featured boolean [not null, note: 'Valor inicial asignado por Python: False']
+  min_tier varchar(50) [not null, note: 'Valor inicial asignado por Python: gratuito']
+  deleted_at timestamptz [null]
+  updated_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  updated_by_name varchar(120) [null]
+  created_at timestamptz [not null, default: `now()`]
+  updated_at timestamptz [not null, default: `now()`, note: 'Actualización automática desde SQLAlchemy.']
+
+  indexes {
+    category [name: 'ix_games_apps_category']
+    is_active [name: 'ix_games_apps_is_active']
+    item_type [name: 'ix_games_apps_item_type']
+    slug [unique, name: 'ix_games_apps_slug']
+  }
+}
+
+Table analytics_accounts {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  external_id varchar(120) [not null]
+  profile varchar(12) [not null]
+  data_origin varchar(12) [not null]
+  created_at timestamptz [not null]
+
+  indexes {
+    created_at [name: 'ix_analytics_accounts_created_at']
+    (data_origin, external_id) [unique]
+  }
+}
+
+Table analytics_activity {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  account_id uuid [not null]
+  external_id varchar(120) [not null]
+  action varchar(60) [not null]
+  data_origin varchar(12) [not null]
+  occurred_at timestamptz [not null]
+
+  indexes {
+    account_id [name: 'ix_analytics_activity_account_id']
+    (data_origin, external_id) [unique]
+  }
+}
+
+Table analytics_payments {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  account_id uuid [not null]
+  external_id varchar(120) [not null]
+  data_origin varchar(12) [not null]
+  amount_minor integer [not null]
+  successful boolean [not null]
+  subscription_active boolean [not null]
+  occurred_at timestamptz [not null]
+
+  indexes {
+    account_id [name: 'ix_analytics_payments_account_id']
+    (data_origin, external_id) [unique]
+  }
+}
+
+Table analytics_sources {
+  name varchar(30) [pk, not null]
+  data_origin varchar(12) [pk, not null]
+  available_through timestamptz [not null]
+  updated_at timestamptz [not null, default: `now()`]
+  revision integer [not null, note: 'Valor inicial asignado por Python: 1']
+}
+
+Table analytics_cohort_snapshots {
+  month date [pk, not null]
+  data_origin varchar(12) [pk, not null]
+  payload jsonb [not null]
+  source_signature varchar(64) [not null]
+  computed_at timestamptz [not null, default: `now()`]
+}
+
+// Relaciones físicas (muchos a uno).
+Ref: admin_sessions.admin_id > admin_users.id
+Ref: admin_invitations.admin_id > admin_users.id [delete: cascade]
+Ref: invitation_emails.invitation_id > admin_invitations.id [delete: cascade]
+Ref: mfa_enrollments.admin_id > admin_users.id [delete: cascade]
+Ref: feature_usage_window.feature_key > features.feature_key
+Ref: support_tickets.assigned_to > admin_users.id
+Ref: support_ticket_replies.ticket_id > support_tickets.id
+Ref: analytics_activity.account_id > analytics_accounts.id
+Ref: analytics_payments.account_id > analytics_accounts.id

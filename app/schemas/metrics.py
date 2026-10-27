@@ -4,6 +4,22 @@ from pydantic import BaseModel
 
 from app.enums import AppRole, PeriodKey, PlanCode
 
+class SourceFreshness(BaseModel):
+    name: str
+    updated_at: datetime | None = None
+    available_through: datetime | None = None
+    missing: bool = False
+    stale: bool = False
+
+class FreshnessOut(BaseModel):
+    status: str
+    sources: list[SourceFreshness]
+    calculation_stale: bool
+
+class CommercialMetadata(BaseModel):
+    data_origin: str = 'unknown'
+    freshness: FreshnessOut | None = None
+
 
 class PeriodOut(BaseModel):
     key: PeriodKey
@@ -18,18 +34,19 @@ class CommercialDeltas(BaseModel):
     active_users_pct: float | None
 
 
-class CommercialSummaryOut(BaseModel):
+class CommercialSummaryOut(CommercialMetadata):
     period: PeriodOut
-    downloads: int
-    new_users: int
-    churned_users: int
-    churn_rate: float
-    active_users: int
-    paying_users: int
-    paying_share: float
-    mrr_clp: int
+    downloads: int | None
+    new_users: int | None
+    churned_users: int | None
+    churn_rate: float | None
+    active_users: int | None
+    paying_users: int | None
+    paying_share: float | None
+    mrr_clp: int | None
     deltas: CommercialDeltas
-    computed_at: datetime
+    computed_at: datetime | None
+    as_of: date | None = None
 
 
 # ---- 4.2 registrations ----
@@ -39,13 +56,13 @@ class BucketOut(BaseModel):
     end: datetime
 
 
-class RegistrationsOut(BaseModel):
+class RegistrationsOut(CommercialMetadata):
     period: PeriodOut
     granularity: str
     buckets: list[BucketOut]
-    signups: list[int]
-    cancellations: list[int]
-    computed_at: datetime
+    signups: list[int | None]
+    cancellations: list[int | None]
+    computed_at: datetime | None
 
 
 # ---- 4.3 plans ----
@@ -53,7 +70,7 @@ class PlanRow(BaseModel):
     plan_code: PlanCode
     name: str
     users: int
-    share: float
+    share: float | None
     price_clp: int | None
     mrr_clp: int
     monthly_churn: float
@@ -62,10 +79,10 @@ class PlanRow(BaseModel):
 class PlanTotals(BaseModel):
     users: int
     mrr_clp: int
-    monthly_churn: float
+    monthly_churn: float | None
 
 
-class PlansOut(BaseModel):
+class PlansOut(CommercialMetadata):
     as_of: date
     plans: list[PlanRow]
     totals: PlanTotals
@@ -76,14 +93,33 @@ class PlansOut(BaseModel):
 class FunnelStage(BaseModel):
     stage: str
     name: str
-    users: int
-    rate_vs_first: float
+    users: int | None
+    rate_vs_first: float | None
+    rate_vs_previous: float | None = None
+    unavailable_reason: str | None = None
 
 
-class FunnelOut(BaseModel):
-    as_of: date
+class CohortOption(BaseModel):
+    month: str
+    accounts: int
+    observed_accounts: int
+    provisional: bool
+
+class FunnelOut(CommercialMetadata):
+    as_of: date | None
     stages: list[FunnelStage]
-    computed_at: datetime
+    computed_at: datetime | None
+    cutoff_at: datetime | None = None
+    cohort_month: str | None = None
+    provisional: bool = True
+    accounts: int = 0
+    observed_accounts: int = 0
+    cohorts: list[CohortOption] = []
+    downloads: int | None = None
+    downloads_as_of: date | None = None
+    downloads_computed_at: datetime | None = None
+    downloads_data_origin: str = 'unknown'
+    downloads_stale: bool = False
 
 
 # ---- 6.1 / 6.2 roles ----

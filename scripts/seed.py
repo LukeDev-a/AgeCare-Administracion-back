@@ -1,22 +1,32 @@
 """Seed de datos demo coherentes con el Wireframe de la Consola v1.
 
 Uso:
-    python -m scripts.seed          # crea tablas (si faltan) y siembra datos
+    python -m scripts.seed --only-empty  # arranque dev: conserva módulos con datos
+    python -m scripts.seed               # reinicialización DESTRUCTIVA manual
 Credenciales demo:
     admin@wellq.co.uk / Admin123!   (rol admin, sin MFA para facilitar la prueba)
     soporte@wellq.co.uk / Soporte123!
     analista@wellq.co.uk / Analista123!
 """
 import asyncio
+import argparse
+import json
 import random
+from pathlib import Path
+from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 from datetime import date, datetime, time, timedelta, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 
 from app import models
 from app.database import Base, get_engine, get_session_factory
 from app.enums import AppRole, ComponentKey, PlanCode
 from app.security import hash_password
+from app.config import get_settings
+from app.analytics_models import (AnalyticsAccount, AnalyticsActivity, AnalyticsPayment,
+                                  AnalyticsSource, AnalyticsCohortSnapshot)
+from app.commercial_analytics import seed_analytics_demo
 
 random.seed(20260828)
 TODAY = date(2026, 8, 28)
@@ -60,44 +70,123 @@ ACTIVE_30D = {"family": 5310, "caregiver": 1470, "elder": 2640, "doctor": 420}
 ROLE_ORDER = ["family", "caregiver", "elder", "doctor"]
 
 
-async def seed() -> None:
+DEMO_MODULES = {
+    'analitica_comercial': (models.MetricsDailyUsers, models.MetricsHourlyUsers, models.MetricsPlanSnapshot),
+    'actividad_por_rol': (models.RoleActivityWindow, models.RoleWeeklyActive),
+    'funcionalidades': (models.Feature, models.FeatureUsageWindow),
+    'monitoreo': (models.ComponentState, models.LatencyWindow, models.CriticalProcessState),
+    'incidentes': (models.Incident,),
+    'tickets': (models.Ticket, models.TicketReply),
+    # El control técnico/cuotas de 0004 no significa que existan contenidos.
+    'contenido': (models.ContentItem, models.NewsCandidate, models.ContentJob),
+    'cuidadoras': (models.CaregiverProfile,),
+    'productos': (models.Product,),
+    'moderacion': (models.ModerationItem,),
+    'configuracion': (models.SystemSetting,),
+    'legales': (models.LegalVersion,),
+}
+
+
+async def seed(*, only_empty: bool = False) -> None:
+    settings = get_settings()
+    if only_empty:
+        if not settings.seed_demo_enabled:
+            print('Datos demo automáticos deshabilitados.')
+            return
+        if settings.environment.strip().lower() != 'dev':
+            raise RuntimeError('La carga demo automática solo se permite con ADMIN_ENVIRONMENT=dev.')
     engine = get_engine()
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    if not only_empty:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
     async with get_session_factory()() as db:
+        allowed_models = set()
+        if only_empty:
+            if engine.dialect.name == 'postgresql':
+                # Serializa procesos de arranque: revisar e insertar en una transacción.
+                await db.execute(text('SELECT pg_advisory_xact_lock(7240062601)'))
+            for name, module_models in DEMO_MODULES.items():
+                occupied = False
+                for model in module_models:
+                    pk = next(iter(model.__table__.primary_key.columns))
+                    if await db.scalar(select(pk).limit(1)) is not None:
+                        occupied = True
+                        break
+                if not occupied:
+                    allowed_models.update(module_models)
+                print(f'Demo {name}: ' + ('conservado (tiene datos).' if occupied else 'carga inicial.'))
+
+        inserted_metrics = set()
+        def add(item):
+            if only_empty and type(item) not in allowed_models:
+                return
+            for model, name in ((models.MetricsDailyUsers, 'daily'), (models.MetricsHourlyUsers, 'hourly'),
+                                 (models.MetricsPlanSnapshot, 'plans')):
+                if isinstance(item, model):
+                    item.data_origin = 'demo'; inserted_metrics.add(name)
+            if isinstance(item, models.MetricsHourlyUsers):
+                item.bucket_minutes = 180
+            if isinstance(item, (models.ComponentState, models.LatencyWindow, models.CriticalProcessState)):
+                item.data_origin = 'demo'
+            if isinstance(item, models.CriticalProcessState):
+                item.execution_kind = 'demo'
+                item.chain = 'Demostración: ' + item.chain
+            if only_empty and isinstance(item, models.ContentItem):
+                # Una demostración no equivale a contenido aprobado ni a audio real.
+                item.status = 'draft'
+                item.published_at = None
+                item.tts_ready = False
+            db.add(item)
+
+        def add_all(items):
+            for item in items:
+                add(item)
+
+        reference_day = datetime.now(ZoneInfo(settings.business_timezone)).date() if only_empty else TODAY
+        reference_now = datetime.now(timezone.utc) if only_empty else NOW
         # limpiar (idempotente)
-        for table in (models.AuditLog, models.AdminSession, models.TicketReply, models.Ticket,
+        for table in (() if only_empty else (AnalyticsCohortSnapshot, AnalyticsActivity, AnalyticsPayment,
+                      AnalyticsAccount, AnalyticsSource, models.AuditLog, models.AdminSession, models.TicketReply, models.Ticket,
                       models.FeatureUsageWindow, models.Feature, models.RoleWeeklyActive,
                       models.RoleActivityWindow, models.MetricsPlanSnapshot,
                       models.MetricsHourlyUsers, models.MetricsDailyUsers,
                       models.LatencyWindow, models.ComponentState, models.CriticalProcessState,
                       models.Incident, models.ContentItem, models.CaregiverProfile,
                       models.Product, models.ModerationItem, models.SystemSetting,
-                      models.LegalVersion, models.AdminUser):
+                      models.LegalVersion, models.AdminUser)):
             await db.execute(delete(table))
 
-        # ---- Staff ----
-        admins = [
-            models.AdminUser(full_name="Max K.", email="admin@wellq.co.uk", role="admin",
-                             password_hash=hash_password("Admin123!"), is_active=True),
-            models.AdminUser(full_name="Sofía Rojas", email="soporte@wellq.co.uk", role="support",
-                             password_hash=hash_password("Soporte123!"), is_active=True),
-            models.AdminUser(full_name="Diego Paredes", email="analista@wellq.co.uk", role="analyst",
-                             password_hash=hash_password("Analista123!"), is_active=True),
-            models.AdminUser(full_name="Carla Núñez", email="editora@wellq.co.uk", role="editor",
-                             password_hash=hash_password("Editora123!"), is_active=True),
-        ]
-        db.add_all(admins)
-        await db.flush()
-        admin, soporte = admins[0], admins[1]
+        # Las cuentas existentes, sus contraseñas, MFA y sesiones son intocables.
+        if only_empty:
+            users = (await db.scalars(select(models.AdminUser).order_by(models.AdminUser.created_at, models.AdminUser.id))).all()
+            fallback = next((user for user in users if user.role == 'admin'),
+                            SimpleNamespace(id=None, full_name='Datos de demostración'))
+            admins = [next((user for user in users if user.role == role), fallback)
+                      for role in ('admin', 'support', 'analyst', 'editor')]
+            admin, soporte = admins[0], admins[1]
+        else:
+            # ---- Staff ----
+            admins = [
+                models.AdminUser(full_name="Max K.", email="admin@wellq.co.uk", role="admin",
+                                 password_hash=hash_password("Admin123!"), is_active=True),
+                models.AdminUser(full_name="Sofía Rojas", email="soporte@wellq.co.uk", role="support",
+                                 password_hash=hash_password("Soporte123!"), is_active=True),
+                models.AdminUser(full_name="Diego Paredes", email="analista@wellq.co.uk", role="analyst",
+                                 password_hash=hash_password("Analista123!"), is_active=True),
+                models.AdminUser(full_name="Carla Núñez", email="editora@wellq.co.uk", role="editor",
+                                 password_hash=hash_password("Editora123!"), is_active=True),
+            ]
+            db.add_all(admins)
+            await db.flush()
+            admin, soporte = admins[0], admins[1]
 
         # ---- Métricas diarias (últimos 14 meses) ----
-        start = TODAY - timedelta(days=425)
+        start = reference_day - timedelta(days=425)
         active = 700.0
         paying = 40.0
         d = start
-        while d <= TODAY:
+        while d <= reference_day:
             month_idx = (d.year - start.year) * 12 + d.month - start.month
             base = 10 + month_idx * 4.6
             signups = max(0, int(random.gauss(base, base * .18)))
@@ -105,7 +194,7 @@ async def seed() -> None:
             active = active + signups - cancels
             paying = min(active * .096, paying + signups * .045)
             mrr = int(paying * 3680)  # ARPU de pago combinado aprox. CLP
-            db.add(models.MetricsDailyUsers(day=d, signups=signups, cancellations=cancels,
+            add(models.MetricsDailyUsers(day=d, signups=signups, cancellations=cancels,
                                             downloads=int(signups * 1.9),
                                             active_users_eod=int(active),
                                             paying_users_eod=int(paying), mrr_clp_eod=mrr))
@@ -113,15 +202,15 @@ async def seed() -> None:
 
         # ---- Métricas horarias de hoy (buckets de 3 h) ----
         for h, (s, c) in enumerate(zip([2, 1, 3, 9, 14, 11, 13, 9], [0, 0, 1, 2, 2, 1, 2, 1])):
-            db.add(models.MetricsHourlyUsers(
-                ts_hour=datetime.combine(TODAY, time(h * 3), tzinfo=timezone.utc), signups=s, cancellations=c))
+            add(models.MetricsHourlyUsers(
+                ts_hour=datetime.combine(reference_day, time(h * 3), tzinfo=timezone.utc), signups=s, cancellations=c))
 
         # ---- Snapshot de planes ----
         for code, users, price, churn in [(PlanCode.free, 8900, None, .029),
                                           (PlanCode.gold, 610, 1000, .041),
                                           (PlanCode.platinum, 240, 10000, .022),
                                           (PlanCode.provider, 90, 5000, .018)]:
-            db.add(models.MetricsPlanSnapshot(as_of=TODAY, plan_code=code, users=users,
+            add(models.MetricsPlanSnapshot(as_of=reference_day, plan_code=code, users=users,
                                               price_clp=price,
                                               mrr_clp=users * price if price else 0,
                                               monthly_churn=churn))
@@ -134,7 +223,7 @@ async def seed() -> None:
         for window in (7, 30, 90):
             factor = {7: .62, 30: 1.0, 90: 1.22}[window]
             for role in ROLE_ORDER:
-                db.add(models.RoleActivityWindow(days_window=window, role=role,
+                add(models.RoleActivityWindow(days_window=window, role=role,
                                                  active_users=int(ACTIVE_30D[role] * factor),
                                                  growth_8w=growth[role],
                                                  sessions_per_week=sessions[role],
@@ -144,16 +233,16 @@ async def seed() -> None:
                   "caregiver": [1350, 1370, 1390, 1410, 1430, 1450, 1460, 1470],
                   "elder": [2210, 2290, 2340, 2400, 2460, 2520, 2580, 2640],
                   "doctor": [350, 360, 375, 380, 395, 400, 410, 420]}
-        monday = TODAY - timedelta(days=TODAY.weekday())
+        monday = reference_day - timedelta(days=reference_day.weekday())
         for i in range(8):
             week = monday - timedelta(weeks=7 - i)
             for role in ROLE_ORDER:
-                db.add(models.RoleWeeklyActive(week_start=week, role=role,
+                add(models.RoleWeeklyActive(week_start=week, role=role,
                                                active_users=weekly[role][i]))
 
         # ---- Funcionalidades y adopción ----
         for key, name, roles, low, note, order in FEATURES:
-            db.add(models.Feature(feature_key=key, name=name, applicable_roles=roles,
+            add(models.Feature(feature_key=key, name=name, applicable_roles=roles,
                                   expected_low=low, note=note, sort_order=order))
         for window in (7, 30, 90):
             wf = {7: .82, 30: 1.0, 90: 1.08}[window]
@@ -163,7 +252,7 @@ async def seed() -> None:
                     if pct is None:
                         continue
                     users = int(ACTIVE_30D[role] * active_f * min(pct * wf, 100) / 100)
-                    db.add(models.FeatureUsageWindow(days_window=window, feature_key=key,
+                    add(models.FeatureUsageWindow(days_window=window, feature_key=key,
                                                      role=role, users=users))
 
         # ---- Estado operativo ----
@@ -179,12 +268,12 @@ async def seed() -> None:
             (ComponentKey.music_sync, "operational", .9920, 140, 620, None),
         ]
         for key, st, up, p50, p95, note in comps:
-            db.add(models.ComponentState(key=key, status=st, uptime_30d=up,
+            add(models.ComponentState(key=key, status=st, uptime_30d=up,
                                          latency_p50_ms=p50, latency_p95_ms=p95, note=note))
             for window, mult in (("1h", 1.0), ("24h", 1.08), ("7d", 1.15)):
                 if p50 is None:
                     continue
-                db.add(models.LatencyWindow(window=window, component_key=key,
+                add(models.LatencyWindow(window=window, component_key=key,
                                             p50_ms=int(p50 * mult), p95_ms=int(p95 * mult),
                                             sample_count={"1h": 3600, "24h": 82000, "7d": 560000}[window]))
         for key, name, chain, p95s, ok, st in [
@@ -194,25 +283,25 @@ async def seed() -> None:
             ("ai_query", "Consulta al asistente IA", "App → API → LLM → respuesta", 4.2, .978, "degraded"),
             ("music_sync", "Sincronización Director Musical", "Tablet → API → S3 → confirmación", 11.4, .992, "operational"),
         ]:
-            db.add(models.CriticalProcessState(key=key, name=name, chain=chain,
+            add(models.CriticalProcessState(key=key, name=name, chain=chain,
                                                p95_seconds=p95s, success_24h=ok, status=st))
-        db.add_all([
+        add_all([
             models.Incident(title="Latencia elevada en el Asistente IA", component_key="ai_assistant",
                             severity="degraded", status="observing",
                             description="p95 de generación sobre 4 s por saturación del proveedor LLM. "
                                         "Mitigación: caché de respuestas frecuentes en evaluación.",
-                            started_at=NOW - timedelta(days=2), created_by=admin.id),
+                            started_at=reference_now - timedelta(days=2), created_by=admin.id),
             models.Incident(title="Notificaciones push retrasadas 23 min", component_key="push",
                             severity="degraded", status="resolved",
                             description="Cola de Notification Hubs saturada tras pico de alertas.",
                             resolution="Se amplió el plan y se añadió alarma de profundidad de cola.",
-                            started_at=NOW - timedelta(days=9), resolved_at=NOW - timedelta(days=9, hours=-1),
+                            started_at=reference_now - timedelta(days=9), resolved_at=reference_now - timedelta(days=9, hours=-1),
                             created_by=soporte.id),
             models.Incident(title="Mantenimiento programado de base de datos", component_key="database",
                             severity="degraded", status="completed", is_maintenance=True,
                             description="Actualización menor de PostgreSQL Flexible sin corte de servicio.",
                             resolution="Completado en ventana 02:00–02:40 con réplica + failover.",
-                            started_at=NOW - timedelta(days=21), resolved_at=NOW - timedelta(days=21, hours=-1),
+                            started_at=reference_now - timedelta(days=21), resolved_at=reference_now - timedelta(days=21, hours=-1),
                             created_by=admin.id),
         ])
 
@@ -227,7 +316,7 @@ async def seed() -> None:
         ]
         n = 1482
         for i, (subj, cat, prio, st, role) in enumerate(subjects):
-            created = NOW - timedelta(days=i, hours=3)
+            created = reference_now - timedelta(days=i, hours=3)
             t = models.Ticket(number=n - i, subject=subj, description=f"Detalle del caso: {subj}.",
                               requester_name=f"Usuario Demo {i + 1}",
                               requester_email=f"usuario{i + 1}@demo.cl", requester_role=role,
@@ -240,13 +329,13 @@ async def seed() -> None:
                               csat_score=5 if st == "resolved" and i % 2 else None,
                               requester_context={"patients": [{"display_name": "Paciente Demo"}],
                                                  "devices": [{"platform": "android", "app_version": "1.0.3"}]})
-            db.add(t)
+            add(t)
         # histórico para KPIs (resueltos 30 d ≈ 214)
         cats = ["account_access"] * 32 + ["wearable_sync"] * 24 + ["alerts_push"] * 14 + \
                ["billing_plans"] * 12 + ["medications"] * 9 + ["other"] * 9
         hist = 0
         for j in range(245):
-            created = NOW - timedelta(days=random.uniform(0, 30))
+            created = reference_now - timedelta(days=random.uniform(0, 30))
             resolved = random.random() < .87
             t = models.Ticket(number=n - 6 - j, subject=f"Caso histórico {j + 1}",
                               description="Ticket histórico de demo.",
@@ -260,21 +349,21 @@ async def seed() -> None:
                               first_response_at=created + timedelta(hours=random.uniform(.5, 5)),
                               resolved_at=created + timedelta(hours=random.uniform(4, 60)) if resolved else None,
                               csat_score=random.choice([4, 5, 5, 5, 3]) if resolved and random.random() < .55 else None)
-            db.add(t)
+            add(t)
             hist += 1
 
         # ---- Contenido ----
-        db.add_all([
+        add_all([
             models.ContentItem(type="joke", title="El loro políglota",
                                body="—Doctor, mi loro habla tres idiomas. —¿Y cuál prefiere? —El silencio, "
                                     "cuando le toca la siesta.", tags=["humor blanco"], status="published",
-                               published_at=NOW - timedelta(days=3), tts_ready=True,
+                               published_at=reference_now - timedelta(days=3), tts_ready=True,
                                created_by=admins[3].id, created_by_name=admins[3].full_name),
             models.ContentItem(type="news", title="Chile lidera adopción de telemedicina en la región",
                                body="Un estudio regional destaca el crecimiento de las consultas a distancia "
                                     "entre personas mayores de 60 años, con foco en el seguimiento crónico.",
                                tags=["actualidad", "salud"], status="published",
-                               published_at=NOW - timedelta(days=1), tts_ready=True,
+                               published_at=reference_now - timedelta(days=1), tts_ready=True,
                                created_by=admins[3].id, created_by_name=admins[3].full_name),
             models.ContentItem(type="joke", title="La receta de la abuela",
                                body="La nieta le pregunta a la abuela por la receta secreta de sus empanadas. "
@@ -284,7 +373,7 @@ async def seed() -> None:
         ])
 
         # ---- Marketplace ----
-        db.add_all([
+        add_all([
             models.CaregiverProfile(name="María Torres", email="maria@cuidado.cl", zone="Providencia",
                                     specialties=["Alzheimer", "Movilidad reducida"], languages=["es"],
                                     certifications_count=3, certifications_verified=True,
@@ -302,7 +391,7 @@ async def seed() -> None:
         ])
 
         # ---- Moderación ----
-        db.add_all([
+        add_all([
             models.ModerationItem(type="review", author_name="Familia Pérez", author_role="family",
                                   content={"rating": 5, "text": "Excelente cuidadora, muy puntual y cariñosa."},
                                   status="pending"),
@@ -314,7 +403,7 @@ async def seed() -> None:
         ])
 
         # ---- Configuración ----
-        db.add_all([
+        add_all([
             models.SystemSetting(
                 key="plan_prices", description="Precios mensuales por plan (CLP).",
                 value={"gold": 1000, "platinum": 10000, "provider": 5000},
@@ -344,18 +433,18 @@ async def seed() -> None:
         ])
 
         # ---- Legales ----
-        db.add_all([
+        add_all([
             models.LegalVersion(doc_type="terms", semver="1.0", status="published",
                                 content_md="# Términos de servicio de AgeCare\n\nVersión inicial." + " Lorem." * 30,
                                 changelog="Versión inicial de lanzamiento.",
                                 effective_date=date(2026, 6, 1), requires_reacceptance=True,
-                                published_at=NOW - timedelta(days=88),
+                                published_at=reference_now - timedelta(days=88),
                                 created_by=admin.id, created_by_name=admin.full_name),
             models.LegalVersion(doc_type="privacy", semver="1.0", status="published",
                                 content_md="# Política de privacidad de AgeCare\n\nVersión inicial." + " Lorem." * 30,
                                 changelog="Versión inicial de lanzamiento.",
                                 effective_date=date(2026, 6, 1), requires_reacceptance=True,
-                                published_at=NOW - timedelta(days=88),
+                                published_at=reference_now - timedelta(days=88),
                                 created_by=admin.id, created_by_name=admin.full_name),
         ])
 
@@ -401,6 +490,28 @@ async def seed() -> None:
              "is_active": False, "featured": False},
         ]
         
+        if only_empty:
+            extra_games = json.loads((Path(__file__).resolve().parents[1] /
+                'app/static/juegos/nuevos.json').read_text(encoding='utf-8'))
+            existing_slugs = set((await db.scalars(select(models.GameApp.slug))).all())
+            # 0005 registra la colección nueva antes del seed: no debe impedir
+            # la carga de los originales. Una colección parcialmente llena se conserva.
+            for name, collection, new_collection in [('juegos_originales', JUEGOS, False),
+                                                       ('juegos_nuevos', extra_games, True)]:
+                if any(game['slug'] in existing_slugs for game in collection):
+                    print(f'Demo {name}: conservado (tiene datos).')
+                    continue
+                for game in collection:
+                    values = dict(game)
+                    values.setdefault('target_url', f"/static/juegos/{game['slug']}/index.html")
+                    values.setdefault('is_active', False if new_collection else True)
+                    db.add(models.GameApp(**values, item_type='game', min_tier='gratuito',
+                        updated_by=admin.id, updated_by_name=admin.full_name))
+                print(f'Demo {name}: carga inicial.')
+            await seed_analytics_demo(db, reference_now, inserted_metrics)
+            await db.commit()
+            return
+
         for datos in JUEGOS:
             # 1. Buscamos si el juego ya existe en la base de datos consultando por su slug
             juego_existente = (await db.execute(
@@ -408,14 +519,14 @@ async def seed() -> None:
             )).scalars().first()
 
             if juego_existente:
-                # 2. Si ya existe, NO hacemos db.add(), solo actualizamos sus valores 
+                # 2. Modo manual: si existe, actualizar sus valores.
                 # (dirección de ejecución y datos del catálogo)
                 juego_existente.target_url = f"{BASE_URL_JUEGOS}/static/juegos/{datos['slug']}/index.html"
                 juego_existente.title = datos['title']
                 juego_existente.is_active = datos['is_active']
             else:
                 # 3. Si NO existe, entonces sí lo insertamos como nuevo
-                db.add(models.GameApp(
+                add(models.GameApp(
                     **datos,
                     item_type="game",
                     min_tier="gratuito",
@@ -424,9 +535,14 @@ async def seed() -> None:
                     updated_by_name=admin.full_name,
                 ))
 
+        await seed_analytics_demo(db, reference_now, inserted_metrics)
         await db.commit()
 
 
 
 if __name__ == "__main__":
-    asyncio.run(seed())
+    parser = argparse.ArgumentParser(description='Datos de demostración de AgeCare')
+    parser.add_argument('--only-empty', action='store_true',
+                        help='Solo módulos vacíos; requiere entorno dev y ADMIN_SEED_DEMO_ENABLED=true.')
+    arguments = parser.parse_args()
+    asyncio.run(seed(only_empty=arguments.only_empty))

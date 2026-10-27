@@ -1,5 +1,11 @@
 # AgeCare — Admin API
 
+Fase 04: [contratos, cohortes, actualización y límites de analítica comercial](docs/analitica-comercial.md). Migración 0007 y worker local de cohortes; fuentes reales y unidad facturable de planes pendientes. Para aplicar el código actualizado en desarrollo, desde esta carpeta: `docker compose up -d --build api`. No borrar volúmenes.
+
+## Arranque con datos de demostración
+
+El Compose de desarrollo carga automáticamente ejemplos **solo en módulos vacíos**, mediante `scripts.seed --only-empty`. Si un módulo ya tiene datos, los conserva; no modifica contraseñas, MFA ni sesiones. Para levantar o actualizar: `docker compose up -d --build api`. Puede desactivarse con `ADMIN_SEED_DEMO_ENABLED=false` en `.env`. El comando manual sin `--only-empty` sigue siendo destructivo y no se usa en el arranque. [Condiciones por módulo y pruebas](docs/datos-demo-arranque.md).
+
 ## Primer acceso en una instalación local nueva
 
 Para crear las cuatro cuentas iniciales de desarrollo sin borrar datos, configurar en el `.env` del backend `ADMIN_ENVIRONMENT=dev` y `ADMIN_BOOTSTRAP_DEV_ACCOUNTS=true`, conservar una `ADMIN_ENCRYPTION_KEY` válida y ejecutar `docker compose up -d --build api`. Solo actúa si no hay ninguna cuenta; no sobrescribe cuentas existentes. Admin entra primero a configurar su MFA. Ver [credenciales, pasos y alcance](docs/cuentas-iniciales-desarrollo.md). No usar estas credenciales públicas en producción.

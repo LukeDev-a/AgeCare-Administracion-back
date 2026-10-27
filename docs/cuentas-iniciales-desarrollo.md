@@ -20,7 +20,7 @@ docker compose up -d --build api
 docker compose logs --tail=50 api
 ```
 
-Compose ejecuta migraciones, `python -m scripts.bootstrap_dev_accounts` y después inicia la API. Si todo está preparado, el log informa que se crearon cuatro cuentas, sin imprimir contraseñas. Con el flag desactivado no crea cuentas. Fuera del entorno `dev` rechaza la carga si se intenta habilitarla.
+Compose ejecuta migraciones, `python -m scripts.bootstrap_dev_accounts`, la carga de demostración `scripts.seed --only-empty` y después inicia la API. La demo es independiente del bootstrap y conserva las cuentas. Si todo está preparado, el log informa que se crearon cuatro cuentas, sin imprimir contraseñas. Con el flag de cuentas desactivado no crea cuentas. Fuera del entorno `dev` rechaza la carga si se intenta habilitarla. Ver [datos demo por módulos vacíos](datos-demo-arranque.md).
 
 ## Acceso inicial
 

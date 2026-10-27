@@ -119,6 +119,7 @@ class AuditLog(Base):
 class MetricsDailyUsers(Base):
     __tablename__ = "metrics_daily_users"
     day: Mapped[date] = mapped_column(Date, primary_key=True)
+    data_origin: Mapped[str] = mapped_column(String(12), default='unknown', server_default='unknown')
     signups: Mapped[int] = mapped_column(Integer, default=0)
     cancellations: Mapped[int] = mapped_column(Integer, default=0)
     downloads: Mapped[int] = mapped_column(Integer, default=0)
@@ -132,7 +133,9 @@ class MetricsHourlyUsers(Base):
     """Solo para el periodo `today` (refresco horario)."""
     __tablename__ = "metrics_hourly_users"
     id: Mapped[uuid.UUID] = pk()
+    data_origin: Mapped[str] = mapped_column(String(12), default='unknown', server_default='unknown')
     ts_hour: Mapped[datetime] = mapped_column(DateTime(timezone=True), unique=True, index=True)
+    bucket_minutes: Mapped[int] = mapped_column(Integer, default=60, server_default='60')
     signups: Mapped[int] = mapped_column(Integer, default=0)
     cancellations: Mapped[int] = mapped_column(Integer, default=0)
     computed_at: Mapped[datetime] = ts_now()
@@ -141,6 +144,7 @@ class MetricsHourlyUsers(Base):
 class MetricsPlanSnapshot(Base):
     __tablename__ = "metrics_plan_snapshot"
     id: Mapped[uuid.UUID] = pk()
+    data_origin: Mapped[str] = mapped_column(String(12), default='unknown', server_default='unknown')
     as_of: Mapped[date] = mapped_column(Date, index=True)
     plan_code: Mapped[str] = mapped_column(String(12))  # enum PlanCode
     users: Mapped[int] = mapped_column(Integer)
@@ -202,8 +206,9 @@ class FeatureUsageWindow(Base):
 
 # ============ Estado operativo ============
 class ComponentState(Base):
-    """Última foto de cada componente (la mantiene el monitor cada 60 s)."""
+    """Última foto recibida; el recolector real aún no está integrado."""
     __tablename__ = "ops_component_state"
+    data_origin: Mapped[str] = mapped_column(String(12), default='unknown', server_default='unknown')
     key: Mapped[str] = mapped_column(String(30), primary_key=True)  # enum ComponentKey
     status: Mapped[str] = mapped_column(String(15))  # enum ComponentStatus
     uptime_30d: Mapped[float] = mapped_column(Float, default=1.0)
@@ -214,8 +219,9 @@ class ComponentState(Base):
 
 
 class LatencyWindow(Base):
-    """Percentiles agregados por ventana (1h/24h/7d), desde ops_request_stats."""
+    """Percentiles recibidos por ventana; no implica un recolector conectado."""
     __tablename__ = "ops_latency_window"
+    data_origin: Mapped[str] = mapped_column(String(12), default='unknown', server_default='unknown')
     id: Mapped[uuid.UUID] = pk()
     window: Mapped[str] = mapped_column(String(4), index=True)  # 1h | 24h | 7d
     component_key: Mapped[str] = mapped_column(String(30))
@@ -228,6 +234,8 @@ class LatencyWindow(Base):
 
 class CriticalProcessState(Base):
     __tablename__ = "ops_critical_process_state"
+    data_origin: Mapped[str] = mapped_column(String(12), default='unknown', server_default='unknown')
+    execution_kind: Mapped[str] = mapped_column(String(12), default='unknown', server_default='unknown')
     key: Mapped[str] = mapped_column(String(40), primary_key=True)
     name: Mapped[str] = mapped_column(String(120))
     chain: Mapped[str] = mapped_column(String(300))
@@ -500,3 +508,5 @@ class GameApp(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+from app import analytics_models  # noqa: E402,F401: metadata común de analítica

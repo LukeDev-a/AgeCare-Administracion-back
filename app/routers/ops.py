@@ -24,6 +24,17 @@ SYNC_COMPONENTS = [ComponentKey.database, ComponentKey.api_core, ComponentKey.au
 
 _SEVERITY_ORDER = {ComponentStatus.operational: 0, ComponentStatus.degraded: 1, ComponentStatus.outage: 2}
 
+
+def measurement_kind(key):
+    return {ComponentKey.push: 'delivery', ComponentKey.ai_assistant: 'generation'}.get(key, 'service')
+
+
+def process_chain(row):
+    # Una demo no prueba que una transacción sintética haya sido ejecutada.
+    if row.execution_kind == 'synthetic':
+        return 'Comprobación sintética (ejecución de prueba): ' + row.chain
+    return row.chain
+
 VALID_TRANSITIONS = {
     IncidentStatus.investigating: {IncidentStatus.observing, IncidentStatus.resolved},
     IncidentStatus.observing: {IncidentStatus.resolved, IncidentStatus.completed, IncidentStatus.investigating},
@@ -38,14 +49,15 @@ async def status(db: Db):
     rows = (await db.execute(select(models.ComponentState))).scalars().all()
     components = sorted(rows, key=lambda r: list(ComponentKey).index(ComponentKey(r.key)))
     overall = max((ComponentStatus(r.status) for r in rows),
-                  key=lambda s: _SEVERITY_ORDER[s], default=ComponentStatus.operational)
+                  key=lambda s: _SEVERITY_ORDER[s], default=None)
     return StatusOut(
         overall=overall,
-        checked_at=max((r.checked_at for r in rows), default=now_utc()),
+        checked_at=max((r.checked_at for r in rows), default=None),
         components=[ComponentOut(key=ComponentKey(r.key), name=COMPONENT_NAMES[ComponentKey(r.key)],
                                  status=ComponentStatus(r.status), uptime_30d=r.uptime_30d,
                                  latency_p50_ms=r.latency_p50_ms, latency_p95_ms=r.latency_p95_ms,
-                                 note=r.note) for r in components])
+                                 note=r.note, checked_at=r.checked_at, data_origin=r.data_origin,
+                                 measurement_kind=measurement_kind(r.key)) for r in components])
 
 
 # ---------- 5.2 Latency ----------
@@ -55,7 +67,7 @@ async def latency(db: Db,
                   components: list[ComponentKey] | None = Query(default=None)):
     if window not in ("1h", "24h", "7d"):
         raise invalid("INVALID_WINDOW", "La ventana indicada no es válida. Usa 1h, 24h o 7d.")
-    keys = [c.value for c in (components or SYNC_COMPONENTS)]
+    keys = list(dict.fromkeys(c.value for c in (components or SYNC_COMPONENTS)))
     rows = (await db.execute(select(models.LatencyWindow)
                              .where(models.LatencyWindow.window == window,
                                     models.LatencyWindow.component_key.in_(keys)))).scalars().all()
@@ -64,8 +76,10 @@ async def latency(db: Db,
                       components=[LatencyRow(key=ComponentKey(r.component_key),
                                              name=COMPONENT_NAMES[ComponentKey(r.component_key)],
                                              p50_ms=r.p50_ms, p95_ms=r.p95_ms,
-                                             sample_count=r.sample_count) for r in rows],
-                      computed_at=max((r.computed_at for r in rows), default=now_utc()))
+                                             sample_count=r.sample_count, computed_at=r.computed_at,
+                                             data_origin=r.data_origin, measurement_kind=measurement_kind(r.component_key)) for r in rows],
+                      computed_at=max((r.computed_at for r in rows), default=None),
+                      missing_components=[key for key in keys if key not in {r.component_key for r in rows}])
 
 
 # ---------- 5.3 Critical processes ----------
@@ -73,10 +87,11 @@ async def latency(db: Db,
 async def critical_processes(db: Db):
     rows = (await db.execute(select(models.CriticalProcessState))).scalars().all()
     return CriticalProcessesOut(
-        processes=[CriticalProcessOut(key=r.key, name=r.name, chain=r.chain,
+        processes=[CriticalProcessOut(key=r.key, name=r.name, chain=process_chain(r),
                                       p95_seconds=r.p95_seconds, success_24h=r.success_24h,
-                                      status=ComponentStatus(r.status)) for r in rows],
-        computed_at=max((r.computed_at for r in rows), default=now_utc()))
+                                      status=ComponentStatus(r.status), computed_at=r.computed_at,
+                                      data_origin=r.data_origin, execution_kind=r.execution_kind) for r in rows],
+        computed_at=max((r.computed_at for r in rows), default=None))
 
 
 # ---------- 5.4 Listar incidentes ----------

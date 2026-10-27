@@ -14,11 +14,14 @@ class ComponentOut(BaseModel):
     latency_p50_ms: int | None
     latency_p95_ms: int | None
     note: str | None
+    checked_at: datetime
+    data_origin: str
+    measurement_kind: str
 
 
 class StatusOut(BaseModel):
-    overall: ComponentStatus
-    checked_at: datetime
+    overall: ComponentStatus | None
+    checked_at: datetime | None
     components: list[ComponentOut]
 
 
@@ -28,12 +31,16 @@ class LatencyRow(BaseModel):
     p50_ms: int
     p95_ms: int
     sample_count: int
+    computed_at: datetime
+    data_origin: str
+    measurement_kind: str
 
 
 class LatencyOut(BaseModel):
     window: str
     components: list[LatencyRow]
-    computed_at: datetime
+    computed_at: datetime | None
+    missing_components: list[ComponentKey]
 
 
 class CriticalProcessOut(BaseModel):
@@ -43,11 +50,14 @@ class CriticalProcessOut(BaseModel):
     p95_seconds: float
     success_24h: float
     status: ComponentStatus
+    computed_at: datetime
+    data_origin: str
+    execution_kind: str
 
 
 class CriticalProcessesOut(BaseModel):
     processes: list[CriticalProcessOut]
-    computed_at: datetime
+    computed_at: datetime | None
 
 
 class IncidentOut(BaseModel):

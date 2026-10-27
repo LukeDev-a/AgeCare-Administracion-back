@@ -14,10 +14,18 @@ from app.errors import ApiError, conflict, not_found
 from app.schemas.common import Page
 from app.schemas.support import (Assignee, ByCategoryOut, CategoryRow, Csat, ReplyCreateIn,
                                  ReplyOut, Requester, SupportDeltas, SupportSummaryOut,
-                                 TicketCreateIn, TicketDetailOut, TicketOut, TicketPatchIn)
+                                 TicketCreateIn, TicketDetailOut, TicketOut, TicketPatchIn, SupportAgentOut)
 from app.security import now_utc
 
 router = APIRouter(prefix="/support", tags=["Soporte"])
+
+
+@router.get('/agents', response_model=list[SupportAgentOut], dependencies=[require('support', write=True)])
+async def list_support_agents(db: Db):
+    # Catálogo mínimo para asignación; no expone correo, roles ni seguridad del personal.
+    rows = await db.scalars(select(models.AdminUser).where(models.AdminUser.is_active.is_(True))
+                            .order_by(models.AdminUser.full_name, models.AdminUser.id))
+    return rows.all()
 
 VALID_TRANSITIONS = {
     TicketStatus.open: {TicketStatus.in_progress, TicketStatus.resolved},

@@ -48,7 +48,8 @@ def resolve(key: PeriodKey, today: date | None = None) -> Period:
     if key == PeriodKey.ytd:
         return Period(key, t.replace(month=1, day=1), t, "month")
     # last_12_months
-    start_month = (t.replace(day=1) - timedelta(days=365)).replace(day=1)
+    year, month = divmod(t.year * 12 + t.month - 1 - 11, 12)
+    start_month = date(year, month + 1, 1)
     return Period(key, start_month, t, "month")
 
 

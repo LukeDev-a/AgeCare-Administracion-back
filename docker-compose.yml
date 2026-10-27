@@ -27,11 +27,14 @@ services:
     environment:
       ADMIN_DATABASE_URL: postgresql+asyncpg://agecare:agecare@db:5432/agecare_admin
       ADMIN_JWT_SECRET: solo-para-desarrollo
+      # Solo desarrollo. Carga módulos vacíos sin borrar ni modificar registros.
+      ADMIN_SEED_DEMO_ENABLED: ${ADMIN_SEED_DEMO_ENABLED:-true}
     ports:
       - "8000:8000"
     command: >
       sh -c "alembic upgrade head &&
              python -m scripts.bootstrap_dev_accounts &&
+             python -m scripts.seed --only-empty &&
              uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 volumes:
