@@ -18,7 +18,10 @@ router = APIRouter(prefix="/moderation", tags=["Moderación"])
 
 def _out(m: models.ModerationItem) -> ModerationItemOut:
     return ModerationItemOut(
-        id=m.id, type=ModerationItemType(m.type), content=m.content,
+        id=m.id, type=ModerationItemType(m.type),
+        content={} if m.type in ('photo', 'chat_message') else m.content,
+        content_available=m.type not in ('photo', 'chat_message'),
+        is_safety=m.is_safety, decision_note=m.decision_note, reject_reason_code=m.reject_reason_code,
         author={"user_id": str(m.author_user_id) if m.author_user_id else None,
                 "name": m.author_name, "role": m.author_role},
         reported_by=m.reported_by, report_reason=m.report_reason,
@@ -27,11 +30,14 @@ def _out(m: models.ModerationItem) -> ModerationItemOut:
 
 
 async def _get_pending(db, item_id: UUID) -> models.ModerationItem:
-    m = await db.get(models.ModerationItem, item_id)
+    m = await db.scalar(select(models.ModerationItem).where(models.ModerationItem.id == item_id)
+                        .with_for_update().execution_options(populate_existing=True))
     if m is None:
         raise not_found()
     if ModerationStatus(m.status) != ModerationStatus.pending:
         raise conflict("ALREADY_MODERATED", "Este elemento ya fue moderado por otra persona. Recarga la cola.")
+    if m.type in ('photo', 'chat_message'):
+        raise conflict('CONTENT_UNAVAILABLE', 'El acceso temporal al contenido aún no está integrado; no se puede decidir sin revisarlo.')
     return m
 
 
@@ -48,7 +54,7 @@ async def queue(db: Db,
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
     # seguridad primero, luego por antigüedad
     rows = (await db.execute(stmt.order_by(models.ModerationItem.is_safety.desc(),
-                                           models.ModerationItem.created_at.asc())
+                                           models.ModerationItem.created_at.asc(), models.ModerationItem.id)
                              .offset((page - 1) * page_size).limit(page_size))).scalars().all()
     return Page(items=[_out(m) for m in rows], page=page, page_size=page_size, total=total)
 
@@ -59,12 +65,12 @@ async def approve(item_id: UUID, body: ApproveIn, request: Request, db: Db,
                   admin: models.AdminUser = require("moderation", write=True)):
     m = await _get_pending(db, item_id)
     m.status = ModerationStatus.approved
-    m.decision_note = body.note
+    m.decision_note = body.note or None
     m.decided_by = admin.id
     m.decided_by_name = admin.full_name
     m.decided_at = now_utc()
-    # Una reseña aprobada pasaría a publicada en el marketplace; un reporte se cierra sin acción.
-    await audit(db, request, "moderation.approve", "moderation_item", m.id)
+    await audit(db, request, "moderation.approve", "moderation_item", m.id,
+                before={'status': 'pending'}, after={'status': 'approved', 'note': m.decision_note})
     return _out(m)
 
 
@@ -77,12 +83,11 @@ async def reject(item_id: UUID, body: RejectIn, request: Request, db: Db,
     m = await _get_pending(db, item_id)
     m.status = ModerationStatus.rejected
     m.reject_reason_code = body.reason_code
-    m.decision_note = body.note
+    m.decision_note = body.note or None
     m.decided_by = admin.id
     m.decided_by_name = admin.full_name
     m.decided_at = now_utc()
-    # El autor recibiría una notificación con el motivo; 3 rechazos "offensive" en 90 días
-    # escalan un caso al admin (job de reglas, fuera de esta API).
     await audit(db, request, "moderation.reject", "moderation_item", m.id,
-                after={"reason": body.reason_code})
+                before={'status': 'pending'},
+                after={"status": "rejected", "reason": body.reason_code, 'note': m.decision_note})
     return _out(m)

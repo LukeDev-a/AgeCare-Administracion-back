@@ -43,6 +43,13 @@ def send_smtp(payload: dict):
         f"Acepta la invitación y configura tu contraseña aquí:\n{payload['url']}\n\n"
         f"Este enlace vence el {payload['expires_at']} (UTC) y solo puede usarse una vez.\n"
         "Si no esperabas esta invitación, contacta al administrador.\n")
+    send_message_smtp(message)
+
+
+def send_message_smtp(message):
+    """Transporte compartido; el contenido lo prepara cada módulo."""
+    settings = get_settings()
+    ensure_mail_configured()
     transport = smtplib.SMTP_SSL if settings.smtp_security == "ssl" else smtplib.SMTP
     kwargs = {"timeout": 20}
     if settings.smtp_security == "ssl":

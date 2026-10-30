@@ -1,5 +1,6 @@
 """Sección 6 (parte analítica) — Estadísticas por perfil."""
 from fastapi import APIRouter, Query
+from datetime import timedelta
 from sqlalchemy import select
 
 from app import models
@@ -7,8 +8,9 @@ from app.deps import Db, require
 from app.enums import AppRole
 from app.errors import invalid
 from app.schemas.metrics import (RoleSummaryRow, RolesSummaryOut, WeeklyActiveOut,
-                                 WeeklySeries)
+                                 WeeklySeries, WeeklyPeriod)
 from app.security import now_utc
+from app.periods import business_today
 
 router = APIRouter(prefix="/metrics/roles", tags=["Perfiles"], dependencies=[require("metrics")])
 ROLE_ORDER = [AppRole.family, AppRole.caregiver, AppRole.elder, AppRole.doctor]
@@ -49,5 +51,8 @@ async def weekly_active(db: Db, weeks: int = Query(default=8)):
     labels = [f"S{w.isocalendar()[1]}" for w in week_starts]
     series = [WeeklySeries(role=role, values=[by.get((w, role.value), 0) for w in week_starts])
               for role in ROLE_ORDER]
+    today = business_today()
     return WeeklyActiveOut(weeks=labels, series=series,
+                           week_details=[WeeklyPeriod(start_date=start, end_date=start+timedelta(days=6),
+                               is_current_week=start <= today <= start+timedelta(days=6)) for start in week_starts],
                            computed_at=max((r.computed_at for r in rows), default=now_utc()))

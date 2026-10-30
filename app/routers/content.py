@@ -93,7 +93,8 @@ async def create_item(body: ContentCreateIn, request: Request, db: Db,
 async def patch_item(item_id: UUID, body: ContentPatchIn, request: Request, db: Db,
                      admin: models.AdminUser = require("content", write=True)):
     item = await _get(db, item_id)
-    before = {"title": item.title, "text_version": item.text_version, "tags": item.tags}
+    before = {"title": item.title, "text_version": item.text_version, "tags": item.tags,
+              "publish_at": as_utc(item.publish_at).isoformat() if item.publish_at else None}
     if body.publish_at is not None and item.status != 'draft':
         raise conflict('SCHEDULE_REQUIRES_DRAFT', 'La programación automática se aplica a borradores.')
     if body.publish_at is not None and as_utc(body.publish_at) <= now_utc():

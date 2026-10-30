@@ -32,14 +32,15 @@ async def login(body: LoginIn, request: Request, db: Db):
 
     async def fail(code="INVALID_CREDENTIALS", msg="Correo o contraseña incorrectos.", status=401):
         await audit(db, request, "auth.login_failed", "admin_user",
-                    admin.id if admin else None, actor=admin, metadata={"outcome": "failure"})
+                    admin.id if admin else None, actor=admin,
+                    metadata={"outcome": "failure", "reason": code})
         await db.commit()  # persistir el intento fallido y la auditoría pese al error
         raise ApiError(status, code, msg)
 
     if admin is None:
         await fail()  # mismo error que contraseña incorrecta: no revela existencia
     if is_locked(admin):
-        raise ApiError(423, "ACCOUNT_LOCKED", "Cuenta bloqueada 15 minutos por intentos fallidos repetidos.")
+        await fail("ACCOUNT_LOCKED", "Cuenta bloqueada 15 minutos por intentos fallidos repetidos.", 423)
     if admin.password_hash is None or not verify_password(body.password, admin.password_hash):
         record_failure(admin)
         await fail()
@@ -47,12 +48,14 @@ async def login(body: LoginIn, request: Request, db: Db):
         await fail("ADMIN_DISABLED", "Esta cuenta de administración está desactivada. Contacta a un admin.", 403)
     if admin.mfa_enabled:
         if not body.otp_code and not body.recovery_code:
-            raise unauthorized("Esta cuenta exige segundo factor. Envía tu código TOTP o de recuperación.", "OTP_REQUIRED")
+            await fail("OTP_REQUIRED", "Esta cuenta exige segundo factor. Envía tu código TOTP o de recuperación.")
         if not check_second_factor(admin, body.otp_code, body.recovery_code):
             record_failure(admin)
             await fail("OTP_INVALID", "El código de verificación no es válido o expiró.")
     elif requires_mfa(admin):
         enrollment = await create_enrollment(db, admin)
+        await audit(db, request, "auth.login_failed", "admin_user", admin.id, actor=admin,
+                    metadata={"outcome": "failure", "reason": "MFA_ENROLLMENT_REQUIRED"})
         return JSONResponse(status_code=403, headers={"Cache-Control": "no-store"}, content={"error": {
             "code": "MFA_ENROLLMENT_REQUIRED", "message": "Debes configurar MFA antes de acceder a la consola.",
             "enrollment_token": enrollment}})
@@ -63,7 +66,8 @@ async def login(body: LoginIn, request: Request, db: Db):
 
     token, refresh_hash, expires = new_refresh_token()
     db.add(models.AdminSession(admin_id=admin.id, refresh_hash=refresh_hash, expires_at=expires, mfa_verified=admin.mfa_enabled, auth_version=admin.auth_version))
-    await audit(db, request, "auth.login", "admin_user", admin.id, actor=admin)
+    await audit(db, request, "auth.login", "admin_user", admin.id, actor=admin,
+                metadata={"outcome": "success"})
     return LoginOut(access_token=create_access_token(admin.id, admin.role, admin.mfa_enabled, admin.auth_version),
                     refresh_token=token, admin=admin)
 

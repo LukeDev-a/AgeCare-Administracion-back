@@ -1,5 +1,9 @@
 # AgeCare — Admin API
 
+Despliegue Render/Neon: [guía de configuración y estado](docs/render-neon.md). Usar Dockerfile.render para la nube; el Dockerfile y Compose habituales siguen destinados al entorno local. El archivo .env.render es privado y nunca se sube al repositorio.
+
+Vista previa de juegos: [corrección para jugar dentro del iframe e instrucciones de integración](docs/diagnostico-vista-previa-juegos.md). Incorporar juntos game_static.py y disponibilidad.js; conserva bloqueo de juegos inactivos sin ampliar CORS administrativo. Sin migración ni nuevas claves.
+
 Fase 04: [contratos, cohortes, actualización y límites de analítica comercial](docs/analitica-comercial.md). Migración 0007 y worker local de cohortes; fuentes reales y unidad facturable de planes pendientes. Para aplicar el código actualizado en desarrollo, desde esta carpeta: `docker compose up -d --build api`. No borrar volúmenes.
 
 ## Arranque con datos de demostración

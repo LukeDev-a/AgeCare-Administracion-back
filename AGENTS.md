@@ -12,6 +12,8 @@ Lee [docs/CONTEXTO-TECNICO.md](docs/CONTEXTO-TECNICO.md) y [docs/invitaciones-mf
 - Conserva las comprobaciones de cuenta propia, último admin activo y bloqueo de registros en cambios de cuentas.
 - Errores de verificación adicional no deben usar 401 para una sesión válida. La gestión MFA usa 422/423; 401 es para autenticación no válida y 403 para falta de permiso.
 - Integra mutaciones de negocio con `app/audit.py`, con campos sensibles protegidos. No restaures captura de clics ni eventos HTTP genéricos.
+- Fase 17 autoriza también logins correctos/fallidos y GET de conversaciones por página, mediante llamadas explícitas. Lee docs/auditoria-administrativa.md: 0011 y scripts.run_api protegen permisos PostgreSQL; no quitar el trigger ni ejecutar la API como propietario para eludirlos. Conservación mínima de dos años sin purga automática.
+- Fase18 es demostración autorizada, solo dev+ADMIN_END_USERS_DEMO_ENABLED. Lee docs/usuarios-pacientes-demo.md: tres tablas demo_app_ sin credenciales/sesiones reales; desactivar no revoca móviles. Mantén banderas/etiquetas de procedencia y no conviertas estos UUID ficticios en identidades canónicas. Source móvil real pendiente.
 
 ## Verificación
 

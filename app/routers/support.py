@@ -3,12 +3,12 @@ from datetime import timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 
 from app import models
 from app.audit import audit
 from app.deps import Db, require
-from app.enums import (CATEGORY_NAMES, AppRole, TicketCategory, TicketChannel, TicketPriority,
+from app.enums import (CATEGORY_NAMES, WRITE, AppRole, TicketCategory, TicketChannel, TicketPriority,
                        TicketStatus)
 from app.errors import ApiError, conflict, not_found
 from app.schemas.common import Page
@@ -23,7 +23,8 @@ router = APIRouter(prefix="/support", tags=["Soporte"])
 @router.get('/agents', response_model=list[SupportAgentOut], dependencies=[require('support', write=True)])
 async def list_support_agents(db: Db):
     # Catálogo mínimo para asignación; no expone correo, roles ni seguridad del personal.
-    rows = await db.scalars(select(models.AdminUser).where(models.AdminUser.is_active.is_(True))
+    rows = await db.scalars(select(models.AdminUser).where(models.AdminUser.is_active.is_(True),
+                            models.AdminUser.role.in_(WRITE['support']))
                             .order_by(models.AdminUser.full_name, models.AdminUser.id))
     return rows.all()
 
@@ -144,9 +145,13 @@ async def list_tickets(db: Db,
             cond = cond | (models.Ticket.number == int(q.lstrip("#")))
         stmt = stmt.where(cond)
     field = order.lstrip("-")
+    priority_order = case((models.Ticket.priority == TicketPriority.low, 0),
+                          (models.Ticket.priority == TicketPriority.medium, 1),
+                          (models.Ticket.priority == TicketPriority.high, 2),
+                          (models.Ticket.priority == TicketPriority.critical, 3), else_=4)
     col = {"created_at": models.Ticket.created_at, "updated_at": models.Ticket.updated_at,
-           "priority": models.Ticket.priority}.get(field, models.Ticket.created_at)
-    stmt = stmt.order_by(col.desc() if order.startswith("-") else col.asc())
+           "priority": priority_order}.get(field, models.Ticket.created_at)
+    stmt = stmt.order_by(col.desc() if order.startswith("-") else col.asc(), models.Ticket.id)
     total = (await db.execute(select(func.count()).select_from(stmt.order_by(None).subquery()))).scalar_one()
     rows = (await db.execute(stmt.offset((page - 1) * page_size).limit(page_size))).scalars().all()
     return Page(items=[_ticket_out(t) for t in rows], page=page, page_size=page_size, total=total)
@@ -215,7 +220,8 @@ async def create_ticket(body: TicketCreateIn, request: Request, db: Db,
 async def patch_ticket(ticket_id: str, body: TicketPatchIn, request: Request, db: Db,
                        admin: models.AdminUser = require("support", write=True)):
     t = await _get_ticket(db, ticket_id)
-    before = {"status": t.status, "priority": t.priority, "assigned_to": str(t.assigned_to)}
+    before = {"status": t.status, "priority": t.priority, "category": t.category,
+              "assigned_to": str(t.assigned_to) if t.assigned_to else None}
     if body.status is not None:
         current, target = TicketStatus(t.status), body.status
         if target != current and target not in VALID_TRANSITIONS[current]:
@@ -225,7 +231,6 @@ async def patch_ticket(ticket_id: str, body: TicketPatchIn, request: Request, db
         t.status = target
         if target == TicketStatus.resolved:
             t.resolved_at = now_utc()
-            # Aquí se enviaría la encuesta CSAT al usuario (push/correo).
     if body.priority is not None:
         t.priority = body.priority
     if body.category is not None:
@@ -233,13 +238,14 @@ async def patch_ticket(ticket_id: str, body: TicketPatchIn, request: Request, db
     if "assigned_to" in body.model_fields_set:
         if body.assigned_to is not None:
             assignee = await db.get(models.AdminUser, body.assigned_to)
-            if assignee is None or not assignee.is_active:
-                raise ApiError(404, "ASSIGNEE_NOT_FOUND", "El agente indicado no existe o está desactivado.")
+            if assignee is None or not assignee.is_active or assignee.role not in WRITE['support']:
+                raise ApiError(404, "ASSIGNEE_NOT_FOUND", "El agente indicado no existe, está desactivado o no tiene permisos de soporte.")
         t.assigned_to = body.assigned_to
     await db.flush()
     await db.refresh(t)
     await audit(db, request, "ticket.update", "ticket", t.id, before=before,
-                after={"status": t.status, "priority": t.priority, "assigned_to": str(t.assigned_to)})
+                after={"status": t.status, "priority": t.priority, "category": t.category,
+                       "assigned_to": str(t.assigned_to) if t.assigned_to else None})
     return _ticket_out(t)
 
 
@@ -255,7 +261,6 @@ async def create_reply(ticket_id: str, body: ReplyCreateIn, request: Request, db
     db.add(reply)
     if not body.internal and t.first_response_at is None:
         t.first_response_at = now_utc()  # KPI de primera respuesta (6.3)
-        # Aquí se notificaría al usuario por push y correo.
     await db.flush()
     await audit(db, request, "ticket.reply", "ticket", t.id, after={"internal": body.internal})
     return ReplyOut.model_validate(reply)
@@ -263,13 +268,15 @@ async def create_reply(ticket_id: str, body: ReplyCreateIn, request: Request, db
 
 # ---------- 8.6 Conversación ----------
 @router.get("/tickets/{ticket_id}/replies", response_model=Page[ReplyOut], dependencies=[require("support")])
-async def list_replies(ticket_id: str, db: Db,
+async def list_replies(ticket_id: str, request: Request, db: Db,
                        page: int = Query(default=1, ge=1),
                        page_size: int = Query(default=25, ge=1, le=100)):
     t = await _get_ticket(db, ticket_id)
     stmt = select(models.TicketReply).where(models.TicketReply.ticket_id == t.id)
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
-    rows = (await db.execute(stmt.order_by(models.TicketReply.created_at)
+    rows = (await db.execute(stmt.order_by(models.TicketReply.created_at, models.TicketReply.id)
                              .offset((page - 1) * page_size).limit(page_size))).scalars().all()
+    await audit(db, request, "ticket.conversation_read", "ticket", t.id,
+                metadata={"page": page, "page_size": page_size})
     return Page(items=[ReplyOut.model_validate(r) for r in rows],
                 page=page, page_size=page_size, total=total)

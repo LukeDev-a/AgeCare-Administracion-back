@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -143,17 +144,34 @@ class WeeklySeries(BaseModel):
     values: list[int]
 
 
+class WeeklyPeriod(BaseModel):
+    start_date: date
+    end_date: date
+    is_current_week: bool
+
+
 class WeeklyActiveOut(BaseModel):
     weeks: list[str]
     series: list[WeeklySeries]
     computed_at: datetime
+    week_details: list[WeeklyPeriod]
 
 
 # ---- 7 features ----
+class AdoptionCalculation(BaseModel):
+    role: AppRole
+    applicable: bool
+    status: Literal['calculated', 'not_applicable', 'not_calculable']
+    reason: Literal['not_applicable', 'missing_active_users', 'no_active_users', 'missing_usage', 'invalid_data'] | None
+    users: int | None
+    active_users: int | None
+
+
 class FeatureAdoptionRow(BaseModel):
     feature_key: str
     name: str
     adoption: list[float | None]
+    calculation_details: list[AdoptionCalculation]
 
 
 class AdoptionOut(BaseModel):
@@ -175,6 +193,7 @@ class TopByRole(BaseModel):
 
 
 class TopOut(BaseModel):
+    calculable_only: Literal[True] = True
     top_by_role: list[TopByRole]
     computed_at: datetime
 
@@ -189,6 +208,7 @@ class AdoptionAlert(BaseModel):
 
 
 class AlertsOut(BaseModel):
+    calculable_only: Literal[True] = True
     threshold: float
     alerts: list[AdoptionAlert]
     computed_at: datetime

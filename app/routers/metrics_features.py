@@ -6,7 +6,7 @@ from app import models
 from app.deps import Db, require
 from app.enums import AppRole
 from app.errors import invalid
-from app.schemas.metrics import (AdoptionAlert, AdoptionOut, AlertsOut, FeatureAdoptionRow,
+from app.schemas.metrics import (AdoptionAlert, AdoptionOut, AlertsOut, FeatureAdoptionRow, AdoptionCalculation,
                                  TopByRole, TopFeature, TopOut)
 from app.security import now_utc
 
@@ -35,14 +35,27 @@ async def _adoption_map(db, days: int) -> tuple[list[models.Feature], dict, dict
     return features, usage, active, computed
 
 
-def _rate(usage: dict, active: dict, feature: models.Feature, role: AppRole) -> float | None:
-    """None = no aplica al rol; 0.0 = disponible pero sin uso."""
-    if role.value not in feature.applicable_roles:
-        return None
-    denom = active.get(role.value, 0)
-    if denom <= 0:
-        return 0.0
-    return round(min(usage.get((feature.feature_key, role.value), 0) / denom, 1.0), 4)
+def _calculate(usage: dict, active: dict, feature: models.Feature, role: AppRole) -> tuple[float | None, AdoptionCalculation]:
+    """Una única regla para matriz, ranking y alertas; ausencia no equivale a cero."""
+    applicable = role.value in feature.applicable_roles
+    numerator = usage.get((feature.feature_key, role.value))
+    denominator = active.get(role.value)
+    def result(status, reason=None, value=None):
+        return value, AdoptionCalculation(role=role, applicable=applicable, status=status, reason=reason,
+            users=numerator if applicable else None, active_users=denominator if applicable else None)
+    if not applicable:
+        return result('not_applicable', 'not_applicable')
+    if denominator is None:
+        return result('not_calculable', 'missing_active_users')
+    if denominator == 0:
+        return result('not_calculable', 'no_active_users')
+    if denominator < 0:
+        return result('not_calculable', 'invalid_data')
+    if numerator is None:
+        return result('not_calculable', 'missing_usage')
+    if numerator < 0 or numerator > denominator:
+        return result('not_calculable', 'invalid_data')
+    return result('calculated', value=numerator / denominator)
 
 
 # ---------- 7.1 Adoption matrix ----------
@@ -50,11 +63,14 @@ def _rate(usage: dict, active: dict, feature: models.Feature, role: AppRole) -> 
 async def adoption(db: Db, days: int = Query(default=30)):
     days = _check_days(days)
     features, usage, active, computed = await _adoption_map(db, days)
+    matrix = []
+    for feature in features:
+        cells = [_calculate(usage, active, feature, role) for role in ROLE_ORDER]
+        matrix.append(FeatureAdoptionRow(feature_key=feature.feature_key, name=feature.name,
+            adoption=[value for value, _ in cells], calculation_details=[details for _, details in cells]))
     return AdoptionOut(
         days=days, roles=ROLE_ORDER,
-        features=[FeatureAdoptionRow(feature_key=f.feature_key, name=f.name,
-                                     adoption=[_rate(usage, active, f, r) for r in ROLE_ORDER])
-                  for f in features],
+        features=matrix,
         computed_at=computed)
 
 
@@ -65,7 +81,7 @@ async def top(db: Db, days: int = Query(default=30), limit: int = Query(default=
     features, usage, active, computed = await _adoption_map(db, days)
     out = []
     for role in ROLE_ORDER:
-        scored = [(f, _rate(usage, active, f, role)) for f in features]
+        scored = [(f, _calculate(usage, active, f, role)[0]) for f in features]
         scored = [(f, s) for f, s in scored if s is not None]
         scored.sort(key=lambda x: x[1], reverse=True)
         out.append(TopByRole(role=role,
@@ -86,7 +102,7 @@ async def alerts(db: Db, days: int = Query(default=30),
     for f in features:
         low_roles, low_values = [], []
         for role in ROLE_ORDER:
-            rate = _rate(usage, active, f, role)
+            rate, _ = _calculate(usage, active, f, role)
             if rate is not None and rate < threshold:
                 low_roles.append(role)
                 low_values.append(rate)

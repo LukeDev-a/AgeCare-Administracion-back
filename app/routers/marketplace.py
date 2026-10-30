@@ -13,6 +13,7 @@ from app.schemas.common import Page
 from app.schemas.operation import (CaregiverOut, CaregiverPatchIn, ProductCreateIn, ProductOut,
                                    ProductPatchIn)
 from app.security import now_utc
+from pydantic import ValidationError
 
 router = APIRouter(prefix="/marketplace", tags=["Catálogos marketplace"])
 
@@ -59,7 +60,7 @@ async def patch_caregiver(caregiver_id: UUID, body: CaregiverPatchIn, request: R
     c = await db.get(models.CaregiverProfile, caregiver_id)
     if c is None:
         raise not_found()
-    before = {"status": c.status}
+    before = {"status": c.status, "reason": c.status_reason, "internal_note": c.internal_note}
     if body.status is not None:
         if body.status == CaregiverStatus.approved and not c.certifications_verified:
             raise conflict("CERTIFICATION_REQUIRED",
@@ -74,7 +75,7 @@ async def patch_caregiver(caregiver_id: UUID, body: CaregiverPatchIn, request: R
     if body.internal_note is not None:
         c.internal_note = body.internal_note
     await audit(db, request, "marketplace.caregiver_update", "caregiver_profile", c.id,
-                before=before, after={"status": c.status})
+                before=before, after={"status": c.status, "reason": c.status_reason, "internal_note": c.internal_note})
     return _cg_out(c, include_note=True)
 
 
@@ -95,7 +96,7 @@ async def list_products(db: Db,
         like = f"%{q}%"
         stmt = stmt.where(models.Product.name.ilike(like) | models.Product.vendor.ilike(like))
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
-    rows = (await db.execute(stmt.order_by(models.Product.updated_at.desc())
+    rows = (await db.execute(stmt.order_by(models.Product.updated_at.desc(), models.Product.id)
                              .offset((page - 1) * page_size).limit(page_size))).scalars().all()
     return Page(items=[ProductOut.model_validate(p) for p in rows],
                 page=page, page_size=page_size, total=total)
@@ -107,11 +108,11 @@ async def create_product(body: ProductCreateIn, request: Request, db: Db,
                          admin: models.AdminUser = require("marketplace", write=True)):
     p = models.Product(name=body.name, category=body.category, vendor=body.vendor,
                        price_clp=body.price_clp, external_url=str(body.external_url),
-                       image_url=str(body.image_url) if body.image_url else None)
+                       image_url=str(body.image_url) if body.image_url else None, status=ContentStatus.draft)
     db.add(p)
     await db.flush()
     await db.refresh(p)
-    await audit(db, request, "marketplace.product_create", "product", p.id, after={"name": p.name})
+    await audit(db, request, "marketplace.product_create", "product", p.id, after=_product_snapshot(p))
     return ProductOut.model_validate(p)
 
 
@@ -119,25 +120,39 @@ async def create_product(body: ProductCreateIn, request: Request, db: Db,
 @router.patch("/products/{product_id}", response_model=ProductOut)
 async def patch_product(product_id: UUID, body: ProductPatchIn, request: Request, db: Db,
                         admin: models.AdminUser = require("marketplace", write=True)):
-    p = await db.get(models.Product, product_id)
+    p = await db.scalar(select(models.Product).where(models.Product.id == product_id).with_for_update())
     if p is None:
         raise not_found()
-    before = {"status": p.status, "name": p.name}
-    if body.external_url is not None:
-        if body.external_url.scheme != "https":
-            raise invalid("INSECURE_URL", "El enlace externo debe usar https.")
-        p.external_url = str(body.external_url)
-    for field in ("name", "category", "vendor", "price_clp"):
-        v = getattr(body, field)
-        if v is not None:
-            setattr(p, field, v)
-    if body.image_url is not None:
-        p.image_url = str(body.image_url)
-    if body.status is not None:
-        p.status = body.status
+    before = _product_snapshot(p)
+    target = body.status if body.status is not None else ContentStatus(p.status)
+    transitions = {ContentStatus.draft: {ContentStatus.published},
+                   ContentStatus.published: {ContentStatus.draft, ContentStatus.archived},
+                   ContentStatus.archived: {ContentStatus.draft}}
+    if target != p.status and target not in transitions[ContentStatus(p.status)]:
+        raise conflict('INVALID_TRANSITION', 'Cambio de estado no permitido para este artículo.')
+    changes = body.model_dump(exclude_unset=True)
+    for field in ('external_url', 'image_url'):
+        if changes.get(field) is not None:
+            changes[field] = str(changes[field])
+    if target == ContentStatus.published:
+        candidate = {**{field: getattr(p, field) for field in ProductCreateIn.model_fields}, **changes}
+        candidate.pop('status', None)
+        try:
+            ProductCreateIn.model_validate(candidate)
+        except ValidationError as exc:
+            raise invalid('INVALID_PRODUCT', 'Revisa los datos obligatorios y enlaces antes de publicar.') from exc
+    if all(getattr(p, field) == value for field, value in changes.items()):
+        return ProductOut.model_validate(p)
+    for field, value in changes.items():
+        setattr(p, field, value)
     p.updated_at = now_utc()
     await db.flush()
     await db.refresh(p)
     await audit(db, request, "marketplace.product_update", "product", p.id, before=before,
-                after={"status": p.status, "name": p.name})
+                after=_product_snapshot(p))
     return ProductOut.model_validate(p)
+
+
+def _product_snapshot(product):
+    return {field: getattr(product, field) for field in (
+        'name', 'category', 'vendor', 'price_clp', 'external_url', 'image_url', 'status')}

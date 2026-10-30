@@ -6,7 +6,7 @@ Convenciones: PK UUID, timestamps con zona horaria, JSON portable
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import (JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer,
+from sqlalchemy import (JSON, Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Integer,
                         String, Text, UniqueConstraint, Uuid, func)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -110,9 +110,42 @@ class AuditLog(Base):
     entity_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, index=True, nullable=True)
     before: Mapped[dict | None] = mapped_column(PortableJSON, nullable=True)
     after: Mapped[dict | None] = mapped_column(PortableJSON, nullable=True)
+    event_metadata: Mapped[dict | None] = mapped_column(PortableJSON, nullable=True)
     ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     user_agent: Mapped[str | None] = mapped_column(String(300), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+# ============ Directorio de demostración (sin autenticación móvil) ============
+class DemoEndUser(Base):
+    """Directorio ficticio, SIN credenciales/sesiones ni identidad móvil canónica."""
+    __tablename__ = 'demo_app_accounts'
+    id: Mapped[uuid.UUID] = pk()
+    full_name: Mapped[str] = mapped_column(String(120))
+    email: Mapped[str] = mapped_column(String(254), unique=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default='true')
+    deactivated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deactivated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    deactivation_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = ts_now()
+
+
+class DemoPatient(Base):
+    __tablename__ = 'demo_app_patients'
+    id: Mapped[uuid.UUID] = pk()
+    full_name: Mapped[str] = mapped_column(String(120))
+    created_at: Mapped[datetime] = ts_now()
+
+
+class DemoPatientMember(Base):
+    __tablename__ = 'demo_app_memberships'
+    __table_args__ = (UniqueConstraint('patient_id', 'user_id', name='uq_demo_patient_user'),
+                     CheckConstraint("role IN ('family', 'caregiver', 'elder', 'doctor')", name='ck_demo_member_role'))
+    id: Mapped[uuid.UUID] = pk()
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('demo_app_patients.id', ondelete='RESTRICT'), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('demo_app_accounts.id', ondelete='RESTRICT'), index=True)
+    role: Mapped[str] = mapped_column(String(20))
+    is_owner: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
 
 
 # ============ Métricas comerciales (agregadas por jobs) ============
@@ -247,6 +280,7 @@ class CriticalProcessState(Base):
 
 class Incident(Base):
     __tablename__ = "ops_incidents"
+    notification_status: Mapped[str] = mapped_column(String(20), default='not_configured', server_default='not_configured')
     id: Mapped[uuid.UUID] = pk()
     title: Mapped[str] = mapped_column(String(160))
     component_key: Mapped[str | None] = mapped_column(String(30), nullable=True)
@@ -261,6 +295,17 @@ class Incident(Base):
     created_at: Mapped[datetime] = ts_now()
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
                                                  onupdate=func.now())
+
+
+class IncidentEmail(Base):
+    __tablename__ = 'ops_incident_emails'
+    id: Mapped[uuid.UUID] = pk()
+    incident_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('ops_incidents.id', ondelete='CASCADE'), index=True)
+    payload_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default='queued', index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = ts_now()
 
 
 # ============ Soporte ============
@@ -496,11 +541,13 @@ class GameApp(Base):
     target_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
  
     # Publicación
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=False, index=True)
     featured: Mapped[bool] = mapped_column(Boolean, default=False)
     min_tier: Mapped[str] = mapped_column(String(50), default="gratuito")
  
     # Auditoría y borrado lógico
+    created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    created_by_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
     updated_by_name: Mapped[str | None] = mapped_column(String(120), nullable=True)

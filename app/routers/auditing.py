@@ -6,15 +6,15 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response
-from sqlalchemy import String, cast, func, or_, select
+from sqlalchemy import func, or_, select
 
 from app import models
-from app.audit import BUSINESS_ACTIONS
+from app.audit import AUDIT_ACTIONS, _mask
 from app.deps import Db, require
 from app.errors import invalid
 from app.schemas.common import Page
 from app.schemas.system import AuditEntryOut
-from app.security import as_utc
+from app.security import as_utc, now_utc
 
 router = APIRouter(tags=["Auditoría"])
 
@@ -29,13 +29,21 @@ def filtered_audit(
     q: str | None = Query(default=None, max_length=120),
 ):
     date_from, date_to = as_utc(date_from), as_utc(date_to)
+    # Ninguna consulta implícita puede saltarse el límite de 90 días.
+    if date_from is None and date_to is None:
+        date_to = now_utc()
+        date_from = date_to - timedelta(days=30)
+    elif date_from is None:
+        date_from = date_to - timedelta(days=90)
+    elif date_to is None:
+        date_to = now_utc()
     if date_from and date_to:
         if date_from > date_to:
             raise invalid("INVALID_DATE_RANGE", "La fecha inicial debe ser anterior a la final.")
         if date_to - date_from > timedelta(days=90):
             raise invalid("RANGE_TOO_WIDE", "El rango temporal no puede superar 90 días. Acótalo.")
     # También excluye el ruido histórico del listado, conteo y exportación.
-    stmt = select(models.AuditLog).where(models.AuditLog.action.in_(BUSINESS_ACTIONS))
+    stmt = select(models.AuditLog).where(models.AuditLog.action.in_(AUDIT_ACTIONS))
     for column, value in ((models.AuditLog.actor_id, actor_id),
                           (models.AuditLog.action, action),
                           (models.AuditLog.entity_type, entity_type),
@@ -49,11 +57,14 @@ def filtered_audit(
     if q:
         # Escape de comodines: la búsqueda representa texto literal.
         pattern = "%" + q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
-        matching_actions = [action for action, labels in BUSINESS_ACTIONS.items()
+        matching_actions = [action for action, labels in AUDIT_ACTIONS.items()
                             if any(q.casefold() in label.casefold() for label in labels)]
-        stmt = stmt.where(or_(models.AuditLog.action.in_(matching_actions), *(column.ilike(pattern, escape="\\") for column in (
-            models.AuditLog.actor_name, models.AuditLog.action, models.AuditLog.entity_type,
-            cast(models.AuditLog.before, String), cast(models.AuditLog.after, String)))))
+        # No buscar en JSON completo: permitiría inferir secretos heredados por coincidencias.
+        fields = [models.AuditLog.actor_name, models.AuditLog.action, models.AuditLog.entity_type]
+        fields += [snapshot[key].as_string() for snapshot in (models.AuditLog.before, models.AuditLog.after)
+                   for key in ('title', 'name', 'full_name', 'subject', 'slug')]
+        stmt = stmt.where(or_(models.AuditLog.action.in_(matching_actions),
+                             *(column.ilike(pattern, escape="\\") for column in fields)))
     return stmt
 
 
@@ -61,11 +72,11 @@ FilteredAudit = Annotated[object, Depends(filtered_audit)]
 
 
 def entry_out(row: models.AuditLog) -> AuditEntryOut:
-    before = dict(row.before or {})
+    before = _mask(dict(row.before or {}))
     before.pop("__audit", None)
-    after = dict(row.after or {})
+    after = _mask(dict(row.after or {}))
     after.pop("__audit", None)
-    label, module = BUSINESS_ACTIONS[row.action]
+    label, module = AUDIT_ACTIONS[row.action]
     if row.action == "games.toggle" and "is_active" in after:
         label = "Activó un juego o aplicación" if after["is_active"] else "Desactivó un juego o aplicación"
     values = {**before, **after}
@@ -76,9 +87,11 @@ def entry_out(row: models.AuditLog) -> AuditEntryOut:
         id=row.id, actor={"admin_id": str(row.actor_id) if row.actor_id else None,
                           "name": row.actor_name, "role": row.actor_role},
         action=row.action, entity_type=row.entity_type, entity_id=row.entity_id,
-        before=before or None, after=after or None, metadata={},
+        before=before or None, after=after or None,
+        metadata={k: v for k, v in _mask(row.event_metadata or {}).items()
+                  if k in {"outcome", "reason", "page", "page_size"}},
         action_label=label, module_label=module, entity_name=name,
-        ip=row.ip, user_agent=row.user_agent, created_at=row.created_at)
+        ip=row.ip, user_agent=row.user_agent, created_at=as_utc(row.created_at))
 
 
 @router.get("/audit-log", response_model=Page[AuditEntryOut], dependencies=[require("audit")])

@@ -11,14 +11,22 @@ BASE = '/api/v1/admin'
 pytestmark = pytest.mark.asyncio
 
 
+@pytest.fixture(autouse=True)
+def hosted_resources(monkeypatch):
+    # Esta suite aísla auditoría; los archivos reales se validan en test_game_availability.
+    monkeypatch.setattr('app.routers.games_apps.ensure_resource', lambda slug: None)
+
+
 async def count_logs():
     async with database._session_factory() as db:
         return await db.scalar(select(func.count()).select_from(models.AuditLog))
 
 
 async def create_game(client, headers, title='Juego de prueba'):
+    slug = f'test-{uuid4()}'
     response = await client.post(f'{BASE}/games-apps/', headers=headers,
-                                 json={'title': title, 'slug': f'test-{uuid4()}', 'category': 'Memoria'})
+                                 json={'title': title, 'slug': slug, 'category': 'Memoria',
+                                       'target_url': f'/static/juegos/{slug}/index.html'})
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -67,8 +75,8 @@ async def test_old_noise_hidden_and_legacy_business_labels(client, admin_headers
                     after={'title': marker, 'is_active': False, '__audit': {'path': '/api/v1/admin/games-apps/', 'source': 'server'}}))
         await db.commit()
     rows = (await client.get(f'{BASE}/audit-log', headers=admin_headers, params={'q': marker})).json()
-    assert rows['total'] == 1
-    entry = rows['items'][0]
+    assert rows['total'] == 2  # login ahora es auditable; clics/HTTP siguen excluidos.
+    entry = next(row for row in rows['items'] if row['action'] == 'games.toggle')
     assert entry['action_label'] == 'Desactivó un juego o aplicación'
     assert entry['metadata'] == {} and '__audit' not in entry['after']
     assert (await client.get(f'{BASE}/audit-log', headers=admin_headers, params={'q': marker, 'action': 'ui.click'})).json()['total'] == 0
@@ -108,7 +116,7 @@ async def test_session_rotation_still_revokes_reuse_without_business_logs(client
     rotated = (await client.post(f'{BASE}/auth/refresh', json={'refresh_token': logged['refresh_token']})).json()
     assert (await client.post(f'{BASE}/auth/refresh', json={'refresh_token': logged['refresh_token']})).status_code == 401
     assert (await client.post(f'{BASE}/auth/refresh', json={'refresh_token': rotated['refresh_token']})).status_code == 401
-    assert await count_logs() == before
+    assert await count_logs() == before + 1  # Solo el login, nunca la rotación.
 
 
 async def test_audit_rollback_is_atomic(client):

@@ -54,7 +54,7 @@ async def test_delete_removes_login_tokens_and_keeps_history(client, admin_heade
     async with database._session_factory() as db:
         assert await db.scalar(select(models.AdminSession).where(models.AdminSession.admin_id == UUID(user['id']))) is None
     logs = (await client.get(f'{BASE}/audit-log', headers=admin_headers, params={'entity_id': user['id']})).json()
-    assert {r['action'] for r in logs['items']} == {'staff.update', 'staff.delete'}
+    assert {r['action'] for r in logs['items']} == {'auth.login', 'staff.update', 'staff.delete'}
     deleted = next(r for r in logs['items'] if r['action'] == 'staff.delete')
     assert deleted['entity_name'] == 'Para eliminar' and deleted['action_label'] == 'Eliminó una cuenta de administración'
     assert (await client.delete(f"{BASE}/users/{user['id']}", headers=admin_headers)).status_code == 404
@@ -96,7 +96,8 @@ async def test_create_ready_account_login_duplicate_and_audit(client, admin_head
     assert (await client.post(f'{BASE}/users', headers=admin_headers, json=payload)).status_code == 409
     assert (await client.post(f'{BASE}/users', headers=admin_headers, json={**payload, 'email': 'una@example.com'})).status_code == 422
     logs = (await client.get(f'{BASE}/audit-log', headers=admin_headers, params={'entity_id': created['id']})).json()
-    assert logs['total'] == 1 and logs['items'][0]['entity_name'] == 'Nueva administradora'
+    assert logs['total'] == 2
+    assert next(row for row in logs['items'] if row['action'] == 'staff.create')['entity_name'] == 'Nueva administradora'
     assert payload['password'] not in str(logs) and 'password_hash' not in str(logs)
     await client.delete(f"{BASE}/users/{created['id']}", headers=admin_headers)
 
@@ -232,8 +233,9 @@ async def test_promotion_requires_mfa_and_deleted_actor_history_survives(client,
     assert (await client.delete(f"{BASE}/users/{actor['id']}", headers=admin_headers)).status_code == 204
     async with database._session_factory() as db:
         logs = (await db.scalars(select(models.AuditLog).where(models.AuditLog.actor_id == UUID(actor['id'])))).all()
-        assert len(logs) == 1 and logs[0].actor_name == 'Cuenta de prueba'
-        assert logs[0].after['full_name'] == 'Editada por otro admin'
+        assert len(logs) == 2 and all(row.actor_name == 'Cuenta de prueba' for row in logs)
+        edited = next(row for row in logs if row.action == 'staff.update')
+        assert edited.after['full_name'] == 'Editada por otro admin'
 
 
 async def test_delete_commits_before_success_response(client, admin_headers, monkeypatch):
@@ -268,8 +270,8 @@ async def test_delete_unassigns_tickets_without_removing_history(client, admin_h
         tickets = []
         for index, (assignee, status) in enumerate([(user, 'open'), (user, 'resolved'), (other, 'open')], 1):
             ticket = models.Ticket(number=number + index, subject='Ticket conservado', description='Detalle conservado',
-                requester_name='Prueba', requester_email='test@wellq.co.uk', category='technical',
-                priority='normal', status=status, assigned_to=UUID(assignee['id']))
+                requester_name='Prueba', requester_email='test@wellq.co.uk', category='other',
+                priority='medium', status=status, assigned_to=UUID(assignee['id']))
             db.add(ticket); tickets.append(ticket)
         await db.flush()
         reply = models.TicketReply(ticket_id=tickets[0].id, author_type='admin', author_id=UUID(user['id']),

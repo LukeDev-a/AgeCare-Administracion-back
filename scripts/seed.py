@@ -27,6 +27,7 @@ from app.config import get_settings
 from app.analytics_models import (AnalyticsAccount, AnalyticsActivity, AnalyticsPayment,
                                   AnalyticsSource, AnalyticsCohortSnapshot)
 from app.commercial_analytics import seed_analytics_demo
+from app.end_users_demo import seed_demo_directory
 
 random.seed(20260828)
 TODAY = date(2026, 8, 28)
@@ -146,7 +147,7 @@ async def seed(*, only_empty: bool = False) -> None:
         reference_day = datetime.now(ZoneInfo(settings.business_timezone)).date() if only_empty else TODAY
         reference_now = datetime.now(timezone.utc) if only_empty else NOW
         # limpiar (idempotente)
-        for table in (() if only_empty else (AnalyticsCohortSnapshot, AnalyticsActivity, AnalyticsPayment,
+        for table in (() if only_empty else (models.IncidentEmail, AnalyticsCohortSnapshot, AnalyticsActivity, AnalyticsPayment,
                       AnalyticsAccount, AnalyticsSource, models.AuditLog, models.AdminSession, models.TicketReply, models.Ticket,
                       models.FeatureUsageWindow, models.Feature, models.RoleWeeklyActive,
                       models.RoleActivityWindow, models.MetricsPlanSnapshot,
@@ -509,6 +510,7 @@ async def seed(*, only_empty: bool = False) -> None:
                         updated_by=admin.id, updated_by_name=admin.full_name))
                 print(f'Demo {name}: carga inicial.')
             await seed_analytics_demo(db, reference_now, inserted_metrics)
+            await seed_demo_directory(db)
             await db.commit()
             return
 

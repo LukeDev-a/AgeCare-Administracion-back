@@ -80,7 +80,7 @@ async def test_full_invitation_mfa_login_refresh_and_recovery(client, admin_head
     assert (await client.post(f'{BASE}/auth/refresh', json={'refresh_token': data['refresh_token']})).status_code == 200
     assert (await client.post(f'{BASE}/auth/login', json={**login_data, 'recovery_code': codes[0]})).status_code == 401
     logs = (await client.get(f'{BASE}/audit-log', headers=admin_headers, params={'entity_id': user['id']})).json()
-    assert {r['action'] for r in logs['items']} == {'staff.create', 'staff.invitation_accept'}
+    assert {r['action'] for r in logs['items']} == {'staff.create', 'staff.invitation_accept', 'auth.login', 'auth.login_failed'}
     assert secret not in str(logs) and token not in str(logs) and PASSWORD not in str(logs) and codes[0] not in str(logs)
 
 

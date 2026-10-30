@@ -7,13 +7,15 @@ from sqlalchemy import pool
 
 from app.config import get_settings
 from app.database import Base
+from app.database_urls import database_connect_args
 from app import models  # noqa: F401  (registra todas las tablas)
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# ConfigParser interpreta %: conservar contraseñas URL-encoded sin interpolarlas.
+config.set_main_option("sqlalchemy.url", get_settings().database_url.replace('%', '%%'))
 target_metadata = Base.metadata
 
 
@@ -33,7 +35,8 @@ def do_run_migrations(connection) -> None:
 
 async def run_migrations_online() -> None:
     connectable = async_engine_from_config(config.get_section(config.config_ini_section, {}),
-                                           prefix="sqlalchemy.", poolclass=pool.NullPool)
+                                           prefix="sqlalchemy.", poolclass=pool.NullPool,
+                                           connect_args=database_connect_args(get_settings().database_url))
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await connectable.dispose()

@@ -1,5 +1,4 @@
 """Secciones 12, 13 y 14 — Configuración, legales y auditoría."""
-from datetime import date, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
@@ -11,14 +10,14 @@ from app.audit import audit
 from app.deps import Db, require
 from app.enums import LegalDocType
 from app.errors import ApiError, conflict, invalid, not_found
-from app.schemas.system import (LegalCurrentOut, LegalDocumentOut,
+from app.schemas.system import (LegalCurrentOut, LegalDocumentOut, LegalVersionDetailOut,
                                 LegalDocumentsOut, LegalDraftOut, LegalVersionCreateIn,
                                 LegalVersionOut, SettingOut, SettingPutIn, SettingsOut)
 from app.security import as_utc, now_utc
+from app.legal_documents import current_version, earliest_major_date, effective_at, semver, validate_schedule, versions
 
 router = APIRouter(tags=["Sistema"])
 
-MAJOR_NOTICE_DAYS = 15
 
 
 def _setting_out(s: models.SystemSetting) -> SettingOut:
@@ -70,29 +69,45 @@ async def put_setting(key: str, body: SettingPutIn, request: Request, db: Db,
 @router.get("/legal/documents", response_model=LegalDocumentsOut, dependencies=[require("legal")])
 async def legal_documents(db: Db, doc_type: LegalDocType | None = Query(default=None)):
     types = [doc_type] if doc_type else list(LegalDocType)
+    now = now_utc()
     docs = []
     for t in types:
-        rows = (await db.execute(select(models.LegalVersion)
-                                 .where(models.LegalVersion.doc_type == t)
-                                 .order_by(models.LegalVersion.created_at.desc()))).scalars().all()
-        published = [r for r in rows if r.status == "published"]
-        current = max(published, key=lambda r: tuple(map(int, r.semver.split(".")))) if published else None
+        rows = sorted(await versions(db, t), key=lambda row: semver(row.semver), reverse=True)
+        current = current_version(rows, now)
         docs.append(LegalDocumentOut(
             doc_type=t,
             current=LegalCurrentOut(version_id=current.id, semver=current.semver,
-                                    published_at=current.published_at,
+                                    published_at=as_utc(current.published_at) if current.published_at else None,
                                     effective_date=current.effective_date,
                                     requires_reacceptance=current.requires_reacceptance)
             if current else None,
             drafts=[LegalDraftOut(version_id=r.id, semver=r.semver,
-                                  created_by_name=r.created_by_name, updated_at=r.updated_at)
-                    for r in rows if r.status == "draft"]))
-    return LegalDocumentsOut(documents=docs)
+                                  created_by_name=r.created_by_name, updated_at=as_utc(r.updated_at))
+                    for r in rows if r.status == "draft"],
+            versions=[LegalVersionDetailOut(**_version_out(r).model_dump(), content_md=r.content_md,
+                      changelog=r.changelog, created_by_name=r.created_by_name,
+                      created_at=as_utc(r.created_at), updated_at=as_utc(r.updated_at),
+                      display_state='draft' if r.status == 'draft' else 'current' if current and r.id == current.id
+                      else 'scheduled' if effective_at(r.effective_date) > as_utc(now) else 'historical') for r in rows]))
+    return LegalDocumentsOut(documents=docs, computed_at=now,
+                             earliest_major_effective_date=earliest_major_date(now))
 
 
 def _semver_tuple(v: str) -> tuple[int, int]:
-    major, minor = v.split(".")
-    return int(major), int(minor)
+    return semver(v)
+
+
+def _version_out(v):
+    return LegalVersionOut(version_id=v.id, doc_type=LegalDocType(v.doc_type), semver=v.semver,
+                           effective_date=v.effective_date, effective_at=effective_at(v.effective_date),
+                           requires_reacceptance=v.requires_reacceptance, status=v.status,
+                           published_at=as_utc(v.published_at) if v.published_at else None)
+
+
+def _legal_snapshot(v):
+    return {'doc_type': v.doc_type, 'semver': v.semver, 'status': v.status,
+            'effective_date': v.effective_date.isoformat(), 'requires_reacceptance': v.requires_reacceptance,
+            'published_at': v.published_at.isoformat() if v.published_at else None}
 
 
 # ---------- 13.2 Crear versión ----------
@@ -100,18 +115,8 @@ def _semver_tuple(v: str) -> tuple[int, int]:
 async def create_legal_version(doc_type: LegalDocType, body: LegalVersionCreateIn,
                                request: Request, db: Db,
                                admin: models.AdminUser = require("legal", write=True)):
-    rows = (await db.execute(select(models.LegalVersion)
-                             .where(models.LegalVersion.doc_type == doc_type))).scalars().all()
-    published = [r for r in rows if r.status == "published"]
-    current = max(published, key=lambda r: _semver_tuple(r.semver)) if published else None
-    if current and _semver_tuple(body.semver) <= _semver_tuple(current.semver):
-        raise conflict("SEMVER_NOT_GREATER", "La versión debe ser mayor que la vigente.")
-    if any(r.semver == body.semver for r in rows):
-        raise conflict("SEMVER_NOT_GREATER", "La versión debe ser mayor que la vigente.")
-    requires_reacceptance = current is None or _semver_tuple(body.semver)[0] > _semver_tuple(current.semver)[0]
-    if requires_reacceptance and body.effective_date < date.today() + timedelta(days=MAJOR_NOTICE_DAYS):
-        raise invalid("NOTICE_PERIOD",
-                      "Un cambio mayor exige una fecha de vigencia con al menos 15 días de aviso.")
+    rows = await versions(db, doc_type, lock=True)
+    requires_reacceptance = validate_schedule(rows, body.semver, body.effective_date, now_utc())
     v = models.LegalVersion(doc_type=doc_type, semver=body.semver, content_md=body.content_md,
                             changelog=body.changelog, effective_date=body.effective_date,
                             requires_reacceptance=requires_reacceptance,
@@ -119,10 +124,8 @@ async def create_legal_version(doc_type: LegalDocType, body: LegalVersionCreateI
     db.add(v)
     await db.flush()
     await audit(db, request, "legal.version_create", "legal_version", v.id,
-                after={"doc_type": doc_type, "semver": body.semver})
-    return LegalVersionOut(version_id=v.id, doc_type=doc_type, semver=v.semver,
-                           effective_date=v.effective_date,
-                           requires_reacceptance=v.requires_reacceptance, status=v.status)
+                after=_legal_snapshot(v))
+    return _version_out(v)
 
 
 # ---------- 13.3 Publicar versión ----------
@@ -132,17 +135,18 @@ async def publish_legal_version(version_id: UUID, request: Request, db: Db,
     v = await db.get(models.LegalVersion, version_id)
     if v is None:
         raise not_found()
+    rows = await versions(db, LegalDocType(v.doc_type), lock=True)
+    v = next(row for row in rows if row.id == version_id)
     if v.status == "published":
         raise conflict("ALREADY_PUBLISHED", "Esta versión ya está publicada.")
-    if v.effective_date < date.today():
-        raise conflict("EFFECTIVE_DATE_PAST",
-                       "La fecha de vigencia ya pasó; crea una versión nueva con fecha futura.")
+    now = now_utc()
+    major = validate_schedule(rows, v.semver, v.effective_date, now, exclude_id=v.id)
+    before = _legal_snapshot(v)
+    v.requires_reacceptance = major
     v.status = "published"
-    v.published_at = now_utc()
+    v.published_at = now
+    v.updated_at = now
     # La versión anterior queda en el histórico: los consentimientos antiguos la siguen referenciando.
     await audit(db, request, "legal.version_publish", "legal_version", v.id,
-                after={"semver": v.semver})
-    return LegalVersionOut(version_id=v.id, doc_type=LegalDocType(v.doc_type), semver=v.semver,
-                           effective_date=v.effective_date,
-                           requires_reacceptance=v.requires_reacceptance,
-                           status=v.status, published_at=v.published_at)
+                before=before, after=_legal_snapshot(v))
+    return _version_out(v)

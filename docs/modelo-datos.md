@@ -6,7 +6,7 @@ El archivo [modelo-datos.dbml](modelo-datos.dbml) contiene el código completo p
 2. Copiar todo su contenido.
 3. En dbdiagram.io, crear un diagrama y reemplazar el ejemplo del panel de código por ese contenido.
 
-Incluye **34 tablas, 349 columnas y 9 claves foráneas** declaradas en `app/models.py` y `app/analytics_models.py`, registrado desde el primero, del backend administrativo. Actualizado el 26 de octubre de 2026 para las fases 04 y 05. Es un modelo físico obtenido del código, no una inspección de una base desplegada. No incluye la tabla técnica `alembic_version`, datos de usuarios ni el esquema de otra API móvil. La interfaz React no tiene una base independiente que añadir aquí.
+Incluye **38 tablas, 376 columnas y 12 claves foráneas** declaradas en `app/models.py` y `app/analytics_models.py`, registrado desde el primero, del backend administrativo. Actualizado el 28 de octubre de 2026: incluye las tres tablas `demo_app_` de fase18, autoría de juegos y event_metadata de auditoría, además de fases 04, 05 y 06. Las nuevas tablas son exclusivamente de demostración, **no el modelo canónico de cuentas/pacientes de la API móvil real**. Es un modelo físico obtenido del código, no una inspección de una base desplegada. No incluye la tabla técnica `alembic_version`, registros ni el esquema de otra API móvil. La interfaz React no tiene una base independiente que añadir aquí. Los permisos/triggers de 0011 se explican en [auditoría administrativa](auditoria-administrativa.md); DBML representa columnas/relaciones, no esos permisos.
 
 ## Cómo interpretarlo
 

@@ -19,6 +19,13 @@ READ_ROLES = {
     '/ops/latency': {'admin', 'analyst', 'support'},
     '/ops/critical-processes': {'admin', 'analyst', 'support'},
     '/support/tickets': {'admin', 'analyst', 'support'},
+    '/metrics/roles/summary': {'admin', 'analyst', 'support'},
+    '/metrics/roles/weekly-active': {'admin', 'analyst', 'support'},
+    '/support/summary': {'admin', 'analyst', 'support'},
+    '/support/tickets/by-category': {'admin', 'analyst', 'support'},
+    '/metrics/features/adoption': {'admin', 'analyst', 'support'},
+    '/metrics/features/top': {'admin', 'analyst', 'support'},
+    '/metrics/features/alerts': {'admin', 'analyst', 'support'},
     '/games-apps/': set(ROLES),
     '/content/items': {'admin', 'editor'},
     '/marketplace/products': {'admin', 'editor', 'moderator'},
@@ -74,15 +81,21 @@ async def test_read_access_matrix_profile_and_logout_for_every_role(client, role
 
 
 @pytest.mark.parametrize('role', (*ROLES, None))
-async def test_every_game_mutation_by_role_and_no_changes_on_rejection(client, role):
+async def test_every_game_mutation_by_role_and_no_changes_on_rejection(client, role, monkeypatch):
+    # Archivos simulados; esta prueba verifica permisos y ausencia de efectos al rechazar.
+    monkeypatch.setattr('app.routers.games_apps.ensure_resource', lambda slug: None)
     headers = (await actor(role))[2] if role else {}
     async with database._session_factory() as db:
-        target = models.GameApp(slug=uuid4().hex, title='Juego intacto', category='Prueba', is_active=True)
+        slug = uuid4().hex
+        target = models.GameApp(slug=slug, title='Juego intacto', category='Prueba', is_active=True,
+                                target_url=f'/static/juegos/{slug}/index.html')
         db.add(target); await db.commit(); target_id = str(target.id)
     expected = 401 if role is None else 403
     allowed = role in ('admin', 'editor')
+    new_slug = uuid4().hex
     calls = [
-        ('POST', '/games-apps/', {'slug': uuid4().hex, 'title': 'Juego nuevo', 'category': 'Prueba'}, 201),
+        ('POST', '/games-apps/', {'slug': new_slug, 'title': 'Juego nuevo', 'category': 'Prueba',
+                                'target_url': f'/static/juegos/{new_slug}/index.html'}, 201),
         ('PUT', f'/games-apps/{target_id}', {'title': 'Título modificado'}, 200),
         ('POST', f'/games-apps/{target_id}/toggle', None, 200),
         ('POST', f'/games-apps/{target_id}/toggle', None, 200),
@@ -122,7 +135,7 @@ async def test_write_separation_admin_exclusivity_and_rejections_preserve_data(c
         ('PATCH', f'/marketplace/products/{product_id}', {'name': 'Nombre editado'}, {'admin', 'editor'}, 200),
         ('POST', f'/moderation/queue/{moderation_id}/approve', {}, {'admin', 'moderator'}, 200),
         ('PUT', f'/settings/{key}', {'value': 2, 'version': 1, 'change_note': 'Prueba RF03'}, {'admin'}, 200),
-        ('POST', '/legal/documents/terms/versions', {'semver': f'99999.{uuid4().int}',
+        ('POST', '/legal/documents/terms/versions', {'semver': f'{100000 + uuid4().int % 899999}.1',
             'content_md': 'Texto legal de prueba. ' * 10, 'changelog': 'Prueba permisos RF03',
             'effective_date': (date.today() + timedelta(days=30)).isoformat()}, {'admin'}, 201),
         ('POST', '/users', {'full_name': 'Invitada RF03', 'email': f'{uuid4()}@wellq.co.uk',

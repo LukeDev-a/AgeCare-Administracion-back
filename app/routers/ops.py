@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from app import models
 from app.audit import audit
+from app.incident_mail import queue_incident
 from app.deps import Db, require
 from app.enums import COMPONENT_NAMES, ComponentKey, ComponentStatus, IncidentStatus
 from app.errors import conflict, invalid, not_found
@@ -14,7 +15,7 @@ from app.schemas.common import Page
 from app.schemas.ops import (ComponentOut, CriticalProcessesOut, CriticalProcessOut,
                              IncidentCreateIn, IncidentOut, IncidentPatchIn, LatencyOut,
                              LatencyRow, StatusOut)
-from app.security import now_utc
+from app.security import as_utc, now_utc
 
 router = APIRouter(prefix="/ops", tags=["Estado operativo"])
 
@@ -36,8 +37,8 @@ def process_chain(row):
     return row.chain
 
 VALID_TRANSITIONS = {
-    IncidentStatus.investigating: {IncidentStatus.observing, IncidentStatus.resolved},
-    IncidentStatus.observing: {IncidentStatus.resolved, IncidentStatus.completed, IncidentStatus.investigating},
+    IncidentStatus.investigating: {IncidentStatus.observing},
+    IncidentStatus.observing: {IncidentStatus.resolved},
     IncidentStatus.resolved: set(),
     IncidentStatus.completed: set(),
 }
@@ -109,7 +110,7 @@ async def list_incidents(db: Db,
     if component:
         stmt = stmt.where(models.Incident.component_key == component)
     total = (await db.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one()
-    rows = (await db.execute(stmt.order_by(models.Incident.started_at.desc())
+    rows = (await db.execute(stmt.order_by(models.Incident.started_at.desc(), models.Incident.id.desc())
                              .offset((page - 1) * page_size).limit(page_size))).scalars().all()
     return Page(items=[IncidentOut.model_validate(r) for r in rows],
                 page=page, page_size=page_size, total=total)
@@ -119,7 +120,7 @@ async def list_incidents(db: Db,
 @router.post("/incidents", response_model=IncidentOut, status_code=201)
 async def create_incident(body: IncidentCreateIn, request: Request, db: Db,
                           admin: models.AdminUser = require("ops", write=True)):
-    if not body.is_maintenance and body.started_at > now_utc():
+    if not body.is_maintenance and as_utc(body.started_at) > now_utc():
         raise invalid("STARTED_AT_FUTURE",
                       "La fecha de inicio no puede ser futura salvo en mantenimientos programados.")
     inc = models.Incident(title=body.title, component_key=body.component_key,
@@ -129,8 +130,10 @@ async def create_incident(body: IncidentCreateIn, request: Request, db: Db,
                           started_at=body.started_at, created_by=admin.id)
     db.add(inc)
     await db.flush()
-    # Aquí se notificaría al canal interno de operaciones (webhook Slack/Teams).
-    await audit(db, request, "ops.incident_create", "incident", inc.id, after={"title": inc.title})
+    await queue_incident(db, inc)
+    inc.updated_at = now_utc()
+    await db.flush()
+    await audit(db, request, "ops.incident_create", "incident", inc.id, after=incident_snapshot(inc))
     return IncidentOut.model_validate(inc)
 
 
@@ -138,27 +141,35 @@ async def create_incident(body: IncidentCreateIn, request: Request, db: Db,
 @router.patch("/incidents/{incident_id}", response_model=IncidentOut)
 async def patch_incident(incident_id: UUID, body: IncidentPatchIn, request: Request, db: Db,
                          admin: models.AdminUser = require("ops", write=True)):
-    inc = await db.get(models.Incident, incident_id)
+    inc = await db.scalar(select(models.Incident).where(models.Incident.id == incident_id).with_for_update())
     if inc is None:
         raise not_found()
-    before = {"status": inc.status, "description": inc.description}
+    before = incident_snapshot(inc)
+    changes = body.model_dump(exclude_unset=True)
     if body.status is not None:
         current = IncidentStatus(inc.status)
         target = body.status
         closing = target in (IncidentStatus.resolved, IncidentStatus.completed)
-        if target == IncidentStatus.completed and not inc.is_maintenance:
+        allowed = ({IncidentStatus.completed} if current == IncidentStatus.observing else set()) if inc.is_maintenance else VALID_TRANSITIONS[current]
+        if target not in allowed:
             raise conflict("INVALID_TRANSITION", "Transición de estado no permitida para este incidente.")
-        if target not in VALID_TRANSITIONS[current]:
-            raise conflict("INVALID_TRANSITION", "Transición de estado no permitida para este incidente.")
-        if closing and not (body.resolution or inc.resolution):
+        if closing and not str(body.resolution or inc.resolution or '').strip():
             raise invalid("RESOLUTION_REQUIRED", "Para cerrar el incidente debes incluir la nota de resolución.")
-        inc.status = target
         if closing:
-            inc.resolved_at = now_utc()
-    if body.resolution is not None:
-        inc.resolution = body.resolution
-    if body.description is not None:
-        inc.description = body.description
+            changes['resolved_at'] = now_utc()
+    if all(getattr(inc, key) == value for key, value in changes.items()):
+        return IncidentOut.model_validate(inc)
+    for key, value in changes.items():
+        setattr(inc, key, value)
+    inc.updated_at = now_utc()
+    await db.flush()
     await audit(db, request, "ops.incident_update", "incident", inc.id, before=before,
-                after={"status": inc.status})
+                after=incident_snapshot(inc))
     return IncidentOut.model_validate(inc)
+
+
+def incident_snapshot(inc):
+    return {key: (getattr(inc, key).isoformat() if isinstance(getattr(inc, key), datetime)
+                 else str(getattr(inc, key)) if isinstance(getattr(inc, key), UUID) else getattr(inc, key))
+        for key in ('title', 'component_key', 'severity', 'status', 'description', 'resolution',
+                    'is_maintenance', 'started_at', 'resolved_at', 'created_by', 'updated_at')}

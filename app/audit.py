@@ -1,4 +1,4 @@
-"""Auditoría de cambios de negocio, dentro de la transacción que los realiza."""
+"""Eventos explícitos de negocio, autenticación y lectura sensible; nunca clics."""
 from uuid import UUID
 
 from fastapi import Request
@@ -10,9 +10,13 @@ SENSITIVE_KEYS = {"password", "password_hash", "mfa_secret", "refresh_hash", "to
                   "access_token", "refresh_token", "otp_code", "authorization",
                   "cookie", "secret", "api_key", "recovery_code", "recovery_codes",
                   "recovery_hashes", "enrollment_token", "secret_encrypted", "payload_encrypted"}
+SENSITIVE_KEYS |= {"smtp_password", "gemini_api_key", "encryption_key", "jwt_secret",
+                   "totp", "otp", "mfa_qr", "qr_code", "qr_data_url", "otpauth_uri",
+                   "client_secret", "invitation_token", "reset_token"}
 
 # Una consulta, un clic o la gestión técnica de una sesión no son cambios de negocio.
 BUSINESS_ACTIONS = {
+    'end_users.demo_deactivate': ('Desactivó una cuenta de prueba', 'Usuarios y pacientes · demostración'),
     "games.create": ("Creó un juego o aplicación", "Juegos y aplicaciones"),
     "games.update": ("Modificó un juego o aplicación", "Juegos y aplicaciones"),
     "games.delete": ("Eliminó un juego o aplicación", "Juegos y aplicaciones"),
@@ -53,10 +57,23 @@ BUSINESS_ACTIONS = {
     "staff.mfa_recovery": ("Renovó sus códigos de recuperación", "Seguridad de cuentas"),
 }
 
+SECURITY_ACTIONS = {
+    'end_users.demo_list': ('Consultó el listado de cuentas de prueba', 'Usuarios y pacientes · demostración'),
+    'patients.demo_list': ('Consultó el listado de pacientes de prueba', 'Usuarios y pacientes · demostración'),
+    'end_users.demo_read': ('Consultó una cuenta de prueba', 'Usuarios y pacientes · demostración'),
+    'patients.demo_read': ('Consultó un paciente de prueba', 'Usuarios y pacientes · demostración'),
+    "auth.login": ("Inició sesión", "Acceso a la consola"),
+    "auth.login_failed": ("Intento de acceso rechazado", "Acceso a la consola"),
+    "ticket.conversation_read": ("Consultó una conversación de soporte", "Soporte"),
+}
+AUDIT_ACTIONS = {**BUSINESS_ACTIONS, **SECURITY_ACTIONS}
+SENSITIVE_READ_ACTIONS = {'ticket.conversation_read', 'end_users.demo_read', 'patients.demo_read',
+                          'end_users.demo_list', 'patients.demo_list'}
+
 
 def _mask(data):
     if isinstance(data, dict):
-        return {k: ("***" if k.lower() in SENSITIVE_KEYS else _mask(v)) for k, v in data.items()}
+        return {k: ("***" if k.lower().removeprefix('admin_') in SENSITIVE_KEYS else _mask(v)) for k, v in data.items()}
     if isinstance(data, list):
         return [_mask(v) for v in data]
     return data
@@ -67,7 +84,9 @@ async def audit(db: AsyncSession, request: Request, action: str,
                 before: dict | None = None, after: dict | None = None,
                 actor: models.AdminUser | None = None,
                 metadata: dict | None = None, record_id: UUID | None = None) -> None:
-    if action not in BUSINESS_ACTIONS or request.method not in {"POST", "PUT", "PATCH", "DELETE"}:
+    allowed_method = (request.method == "GET" if action in SENSITIVE_READ_ACTIONS
+                      else request.method in {"POST", "PUT", "PATCH", "DELETE"})
+    if action not in AUDIT_ACTIONS or not allowed_method:
         return
     actor = actor or getattr(request.state, "actor", None)
     db.add(models.AuditLog(
@@ -75,6 +94,8 @@ async def audit(db: AsyncSession, request: Request, action: str,
         actor_name=actor.full_name if actor else None, actor_role=actor.role if actor else None,
         action=action, entity_type=entity_type, entity_id=entity_id,
         before=_mask(before), after=_mask(after),
+        event_metadata=_mask({k: v for k, v in (metadata or {}).items()
+                              if k in {"outcome", "reason", "page", "page_size"}}) or None,
         ip=request.client.host if request.client else None,
         user_agent=(request.headers.get("user-agent") or "")[:300],
     ))

@@ -107,6 +107,7 @@ Table audit_log {
   entity_id uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
   before jsonb [null]
   after jsonb [null]
+  event_metadata jsonb [null]
   ip varchar(45) [null]
   user_agent varchar(300) [null]
   created_at timestamptz [not null, default: `now()`]
@@ -117,6 +118,41 @@ Table audit_log {
     created_at [name: 'ix_audit_log_created_at']
     entity_id [name: 'ix_audit_log_entity_id']
     entity_type [name: 'ix_audit_log_entity_type']
+  }
+}
+
+Table demo_app_accounts {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  full_name varchar(120) [not null]
+  email varchar(254) [not null]
+  is_active boolean [not null, default: true]
+  deactivated_at timestamptz [null]
+  deactivated_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  deactivation_reason varchar(500) [null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    email [unique]
+  }
+}
+
+Table demo_app_patients {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  full_name varchar(120) [not null]
+  created_at timestamptz [not null, default: `now()`]
+}
+
+Table demo_app_memberships {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  patient_id uuid [not null]
+  user_id uuid [not null]
+  role varchar(20) [not null]
+  is_owner boolean [not null, default: false]
+
+  indexes {
+    patient_id [name: 'ix_demo_app_memberships_patient_id']
+    (patient_id, user_id) [unique, name: 'uq_demo_patient_user']
+    user_id [name: 'ix_demo_app_memberships_user_id']
   }
 }
 
@@ -257,6 +293,7 @@ Table ops_critical_process_state {
 }
 
 Table ops_incidents {
+  notification_status varchar(20) [not null, default: 'not_configured']
   id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
   title varchar(160) [not null]
   component_key varchar(30) [null]
@@ -274,6 +311,21 @@ Table ops_incidents {
   indexes {
     started_at [name: 'ix_ops_incidents_started_at']
     status [name: 'ix_ops_incidents_status']
+  }
+}
+
+Table ops_incident_emails {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  incident_id uuid [not null]
+  payload_encrypted text [null]
+  status varchar(20) [not null, note: 'Valor inicial asignado por Python: queued']
+  attempts integer [not null, note: 'Valor inicial asignado por Python: 0']
+  next_attempt_at timestamptz [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    incident_id [name: 'ix_ops_incident_emails_incident_id']
+    status [name: 'ix_ops_incident_emails_status']
   }
 }
 
@@ -514,9 +566,11 @@ Table games_apps {
   item_type varchar(20) [not null, note: 'Valor inicial asignado por Python: game']
   category varchar(80) [not null]
   target_url varchar(500) [null]
-  is_active boolean [not null, note: 'Valor inicial asignado por Python: True']
+  is_active boolean [not null, note: 'Valor inicial asignado por Python: False']
   featured boolean [not null, note: 'Valor inicial asignado por Python: False']
   min_tier varchar(50) [not null, note: 'Valor inicial asignado por Python: gratuito']
+  created_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  created_by_name varchar(120) [null]
   deleted_at timestamptz [null]
   updated_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
   updated_by_name varchar(120) [null]
@@ -595,7 +649,10 @@ Ref: admin_sessions.admin_id > admin_users.id
 Ref: admin_invitations.admin_id > admin_users.id [delete: cascade]
 Ref: invitation_emails.invitation_id > admin_invitations.id [delete: cascade]
 Ref: mfa_enrollments.admin_id > admin_users.id [delete: cascade]
+Ref: demo_app_memberships.patient_id > demo_app_patients.id [delete: restrict]
+Ref: demo_app_memberships.user_id > demo_app_accounts.id [delete: restrict]
 Ref: feature_usage_window.feature_key > features.feature_key
+Ref: ops_incident_emails.incident_id > ops_incidents.id [delete: cascade]
 Ref: support_tickets.assigned_to > admin_users.id
 Ref: support_ticket_replies.ticket_id > support_tickets.id
 Ref: analytics_activity.account_id > analytics_accounts.id

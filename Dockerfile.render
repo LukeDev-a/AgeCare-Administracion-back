@@ -1,0 +1,12 @@
+FROM python:3.12-slim
+
+WORKDIR /srv/app
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+
+# Render proporciona PORT. Este arranque solo valida y ejecuta la API;
+# no migra, no carga seed y no recibe la contraseña propietaria de Neon.
+CMD ["python", "-m", "scripts.run_render"]

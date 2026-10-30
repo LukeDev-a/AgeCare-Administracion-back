@@ -93,10 +93,11 @@ class ProductOut(BaseModel):
 
 
 class ProductCreateIn(BaseModel):
+    model_config = {'extra': 'forbid', 'str_strip_whitespace': True}
     name: str = Field(min_length=3, max_length=160)
     category: str = Field(min_length=2, max_length=60)
     vendor: str = Field(min_length=2, max_length=120)
-    price_clp: int | None = Field(default=None, ge=0)
+    price_clp: int | None = Field(default=None, ge=0, strict=True)
     external_url: HttpUrl
     image_url: HttpUrl | None = None
 
@@ -109,17 +110,31 @@ class ProductCreateIn(BaseModel):
 
 
 class ProductPatchIn(BaseModel):
+    model_config = {'extra': 'forbid', 'str_strip_whitespace': True}
     name: str | None = Field(default=None, min_length=3, max_length=160)
     category: str | None = Field(default=None, min_length=2, max_length=60)
     vendor: str | None = Field(default=None, min_length=2, max_length=120)
-    price_clp: int | None = Field(default=None, ge=0)
+    price_clp: int | None = Field(default=None, ge=0, strict=True)
     external_url: HttpUrl | None = None
     image_url: HttpUrl | None = None
     status: ContentStatus | None = None
 
+    @model_validator(mode='after')
+    def validate_patch(self):
+        for field in self.model_fields_set - {'price_clp', 'image_url'}:
+            if getattr(self, field) is None:
+                raise ValueError('Solo precio e imagen admiten null.')
+        if self.external_url is not None and self.external_url.scheme != 'https':
+            raise ValueError('El enlace externo debe usar https.')
+        return self
+
 
 # ---- Moderación ----
 class ModerationItemOut(BaseModel):
+    is_safety: bool = False
+    decision_note: str | None = None
+    reject_reason_code: RejectReason | None = None
+    content_available: bool = True
     id: UUID
     type: ModerationItemType
     content: dict
@@ -133,9 +148,11 @@ class ModerationItemOut(BaseModel):
 
 
 class ApproveIn(BaseModel):
+    model_config = {'extra': 'forbid', 'str_strip_whitespace': True}
     note: str | None = Field(default=None, max_length=1000)
 
 
 class RejectIn(BaseModel):
+    model_config = {'extra': 'forbid', 'str_strip_whitespace': True}
     reason_code: RejectReason
     note: str | None = Field(default=None, max_length=1000)

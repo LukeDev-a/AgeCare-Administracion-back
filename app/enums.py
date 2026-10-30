@@ -165,7 +165,8 @@ READ = {"metrics": {AdminRole.admin, AdminRole.analyst, AdminRole.support},
         "settings": {AdminRole.admin},
         "legal": {AdminRole.admin},
         "staff": {AdminRole.admin},
-        "audit": {AdminRole.admin}}
+        "audit": {AdminRole.admin},
+        "end_users": {AdminRole.admin}}
 WRITE = {"ops": {AdminRole.admin, AdminRole.support},
          "games": {AdminRole.admin, AdminRole.editor},
          "support": {AdminRole.admin, AdminRole.support},
@@ -174,4 +175,5 @@ WRITE = {"ops": {AdminRole.admin, AdminRole.support},
          "moderation": {AdminRole.admin, AdminRole.moderator},
          "settings": {AdminRole.admin},
          "legal": {AdminRole.admin},
-         "staff": {AdminRole.admin}}
+         "staff": {AdminRole.admin},
+         "end_users": {AdminRole.admin}}

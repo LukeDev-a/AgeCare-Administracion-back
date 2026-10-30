@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field, field_validator, model_validator
 
 from app.enums import ComponentKey, ComponentStatus, IncidentStatus
 
@@ -61,6 +61,7 @@ class CriticalProcessesOut(BaseModel):
 
 
 class IncidentOut(BaseModel):
+    notification_status: str
     id: UUID
     title: str
     component_key: ComponentKey | None
@@ -82,11 +83,27 @@ class IncidentCreateIn(BaseModel):
     component_key: ComponentKey | None = None
     severity: str = Field(pattern="^(degraded|outage)$")
     description: str = Field(min_length=1, max_length=4000)
-    started_at: datetime
+    started_at: AwareDatetime
     is_maintenance: bool = False
+
+    @field_validator('title', 'description', mode='before')
+    @classmethod
+    def trim_text(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
 
 class IncidentPatchIn(BaseModel):
     status: IncidentStatus | None = None
-    resolution: str | None = Field(default=None, max_length=2000)
-    description: str | None = Field(default=None, max_length=4000)
+    resolution: str | None = Field(default=None, min_length=1, max_length=2000)
+    description: str | None = Field(default=None, min_length=1, max_length=4000)
+
+    @field_validator('resolution', 'description', mode='before')
+    @classmethod
+    def trim_text(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+    @model_validator(mode='after')
+    def require_update(self):
+        if not self.model_fields_set or any(getattr(self, key) is None for key in self.model_fields_set):
+            raise ValueError('Envía al menos un campo y no utilices valores nulos.')
+        return self

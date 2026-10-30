@@ -9,6 +9,7 @@ os.environ["ADMIN_ENCRYPTION_KEY"] = "MDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMD
 os.environ["ADMIN_SMTP_HOST"] = "localhost"
 os.environ["ADMIN_MAIL_FROM"] = "tests@wellq.co.uk"
 os.environ["ADMIN_MAIL_WORKER_ENABLED"] = "false"
+os.environ["ADMIN_INCIDENT_MAIL_RECIPIENTS"] = ""
 os.environ["ADMIN_CONTENT_WORKER_ENABLED"] = "false"
 os.environ["ADMIN_COMMERCIAL_WORKER_ENABLED"] = "false"
 os.environ["ADMIN_GEMINI_API_KEY"] = ""

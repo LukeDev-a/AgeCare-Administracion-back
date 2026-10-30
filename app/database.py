@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.orm import DeclarativeBase
 
 from app.config import get_settings
+from app.database_urls import database_connect_args
 
 
 class Base(DeclarativeBase):
@@ -18,7 +19,8 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 def get_engine():
     global _engine, _session_factory
     if _engine is None:
-        _engine = create_async_engine(get_settings().database_url, pool_pre_ping=True)
+        value = get_settings().database_url
+        _engine = create_async_engine(value, pool_pre_ping=True, connect_args=database_connect_args(value))
         _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
     return _engine
 
