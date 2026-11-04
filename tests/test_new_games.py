@@ -9,22 +9,24 @@ from app import models, database
 from app.config import get_settings
 
 
-def test_register_new_games_preserves_existing_values_and_is_idempotent():
+@pytest.mark.parametrize('migration_file,existing_slug', [
+    ('0005_new_games.py', 'domino'), ('0013_collection_games.py', 'sudoku')])
+def test_register_new_games_preserves_existing_values_and_is_idempotent(migration_file, existing_slug):
     engine = sa.create_engine('sqlite://')
     with engine.begin() as connection:
         models.GameApp.__table__.create(connection)
-        connection.execute(models.GameApp.__table__.insert().values(slug='domino', title='Título personalizado',
+        connection.execute(models.GameApp.__table__.insert().values(slug=existing_slug, title='Título personalizado',
             category='Personalizada', item_type='game', is_active=True, target_url='https://example.org/propio'))
-        file = Path(__file__).resolve().parents[1] / 'alembic/versions/0005_new_games.py'
+        file = Path(__file__).resolve().parents[1] / 'alembic/versions' / migration_file
         spec = importlib.util.spec_from_file_location('new_games_migration', file)
         migration = importlib.util.module_from_spec(spec); spec.loader.exec_module(migration)
         migration.op = Operations(MigrationContext.configure(connection))
         migration.upgrade(); migration.upgrade()
         rows = connection.execute(sa.select(models.GameApp.__table__)).mappings().all()
         assert len(rows) == 10
-        old = next(row for row in rows if row['slug'] == 'domino')
+        old = next(row for row in rows if row['slug'] == existing_slug)
         assert old['title'] == 'Título personalizado' and old['is_active']
-        assert all(not row['is_active'] for row in rows if row['slug'] != 'domino')
+        assert all(not row['is_active'] for row in rows if row['slug'] != existing_slug)
         migration.downgrade()
         assert connection.execute(sa.select(sa.func.count()).select_from(models.GameApp.__table__)).scalar() == 10
     engine.dispose()

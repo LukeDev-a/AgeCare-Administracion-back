@@ -1,5 +1,6 @@
 """Sección 3 — Autenticación y gestión del staff."""
 from datetime import timedelta
+from math import ceil
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, Response
@@ -35,12 +36,16 @@ async def login(body: LoginIn, request: Request, db: Db):
                     admin.id if admin else None, actor=admin,
                     metadata={"outcome": "failure", "reason": code})
         await db.commit()  # persistir el intento fallido y la auditoría pese al error
-        raise ApiError(status, code, msg)
+        details = None
+        if admin and admin.locked_until and as_utc(admin.locked_until) > now_utc():
+            details = [{"locked_until": as_utc(admin.locked_until).isoformat(),
+                        "retry_after_seconds": max(1, ceil((as_utc(admin.locked_until) - now_utc()).total_seconds()))}]
+        raise ApiError(status, code, msg, details)
 
     if admin is None:
         await fail()  # mismo error que contraseña incorrecta: no revela existencia
     if is_locked(admin):
-        await fail("ACCOUNT_LOCKED", "Cuenta bloqueada 15 minutos por intentos fallidos repetidos.", 423)
+        await fail("ACCOUNT_LOCKED", "Cuenta bloqueada temporalmente por intentos fallidos repetidos.", 423)
     if admin.password_hash is None or not verify_password(body.password, admin.password_hash):
         record_failure(admin)
         await fail()

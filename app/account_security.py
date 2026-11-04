@@ -33,7 +33,11 @@ def decrypt(value: str) -> str:
 
 
 def requires_mfa(user) -> bool:
-    roles = {role.strip() for role in get_settings().mfa_required_roles.split(",")}
+    settings = get_settings()
+    exempt_ids = {value.strip() for value in settings.mfa_test_exempt_account_ids.split(',') if value.strip()}
+    if settings.environment == 'dev' and str(user.id) in exempt_ids and not user.mfa_required:
+        return False
+    roles = {role.strip() for role in settings.mfa_required_roles.split(",")}
     return user.mfa_required or user.role in roles
 
 

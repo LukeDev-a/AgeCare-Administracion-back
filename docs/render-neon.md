@@ -1,5 +1,13 @@
 # Render + Neon — demostración de AgeCare
 
+## Conexión Vercel pendiente de confirmar
+
+Frontend público: https://age-care-administracion-front.vercel.app. HTML/JS accesibles y bundle contiene API Render correcta. Preflight OPTIONS desde ese origen agotó timeout30s; todavía sin evidencia de CORS autorizado/login público. Perfil LOCAL .env.render actualizado únicamente en ADMIN_ALLOWS_ORIGINS (Vercel + los dos orígenes locales5173) y ADMIN_FRONTEND_URL (Vercel). Aplicar mismos valores en Render/Environment y desplegar; no reimportar secretos ni regenerarlos. Verificar después OPTIONS y flujo del usuario. No se cambió configuración remota mediante herramientas.
+
+## Servicio publicado — 30 de octubre de 2026
+
+Usuario desplegó desde el repositorio elegido; captura indica Deploy succeeded/Live. URL https://agecare-administracion-back.onrender.com. Comprobación externa por HTTPS sin credenciales: /health status ok; /api/v1/admin/games-apps/active devuelve11 juegos activos, direcciones propias HTTPS correctas; HEAD de juego propio con Origin null devuelve200 y Access-Control-Allow-Origin:*. Sin cambios en datos ni login. Los404 de / en los logs son esperables: la API no tiene portada. Todavía pendientes frontend Vercel, CORS con su origen real, ADMIN_FRONTEND_URL y login/MFA públicos. Los párrafos de «todavía no publicado» siguientes describen la preparación inicial; el agente no hizo commits/push ni pulsó el despliegue.
+
 30 de octubre de 2026. Usuario eligió el repositorio LukeDev-a/AgeCare-Administracion-back, rama local main, Render Virginia y Neon Virginia. Datos ya copiados y verificados en Neon. Todavía no se ha publicado el servicio ni se han hecho commits/pushes por el agente.
 
 ## Preparación realizada

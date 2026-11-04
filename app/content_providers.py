@@ -111,14 +111,25 @@ async def narrate(text):
     try:
         parts = data['candidates'][0]['content']['parts']
         audio = next(part['inlineData'] for part in parts if 'inlineData' in part)
-        mime = audio['mimeType']
-        if not mime.startswith('audio/L16') and not mime.startswith('audio/pcm'):
+        if not isinstance(audio['mimeType'], str):
+            raise ValueError()
+        mime_parts = audio['mimeType'].split(';')
+        mime = mime_parts[0].strip().casefold()
+        if mime not in {'audio/l16', 'audio/pcm'}:
+            raise ValueError()
+        parameters = dict(part.strip().casefold().split('=', 1)
+                          for part in mime_parts[1:] if part.strip())
+        rate = int(parameters.get('rate', '24000'))
+        channels = int(parameters.get('channels', '1'))
+        if not 8000 <= rate <= 48000 or channels != 1:
+            raise ValueError()
+        if parameters.get('codec', 'pcm') not in {'pcm', 's16le'}:
             raise ValueError()
         pcm = base64.b64decode(audio['data'], validate=True)
         if not pcm or len(pcm) % 2: raise ValueError()
         result = io.BytesIO()
         with wave.open(result, 'wb') as output:
-            output.setnchannels(1); output.setsampwidth(2); output.setframerate(24000); output.writeframes(pcm)
+            output.setnchannels(channels); output.setsampwidth(2); output.setframerate(rate); output.writeframes(pcm)
         return result.getvalue()
     except (KeyError, IndexError, StopIteration, TypeError, ValueError):
         raise ProviderError('INVALID_AUDIO_OUTPUT') from None

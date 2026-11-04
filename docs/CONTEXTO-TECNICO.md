@@ -1,5 +1,41 @@
 # Mapa del backend
 
+Cuenta de pruebas solicitada el 4 de noviembre de 2026: administrador@gmail.com, nombre administrador, admin activo, mfa_required=false y mfa_enabled=false, creada y auditada en Neon sin tocar otras cuentas. Contraseña solo archivo privado .env.editor-* ignorado. Excepción nueva ADMIN_MFA_TEST_EXEMPT_ACCOUNT_IDS limitada a UUID explícitos en environment=dev y cuentas sin obligación individual; MFA ya habilitado sigue exigido. Diecinueve pruebas de cuentas/login/invitaciones aprobadas, incluidos aislamiento, refresh y rechazo de excepción en staging/prod. Para uso remoto falta desplegar backend y configurar UUID de esta cuenta en Render; no afirmar acceso sin MFA ya aplicado en Render ni cambiar ADMIN_MFA_REQUIRED_ROLES globalmente. No commits/push/despliegues realizados.
+
+Login, contador de bloqueo (4 de noviembre de 2026): auth.login añade details con locked_until UTC y retry_after_seconds calculado al informar bloqueo, también en el fallo que alcanza el umbral, conservando códigos/status existentes. ACCOUNT_LOCKED ya no fija quince minutos en mensaje. No cambia umbral de cinco, ventana diez minutos ni duración configurada; no migración. Cuatro pruebas aisladas confirman conteo mixto, caducidad, reset y tiempo restante que disminuye sin extender bloqueo. Instalación habitual y Render no se reiniciaron/desplegaron. Frontend necesita estos metadatos para mostrar contador.
+
+## Catálogo original ampliado — 4 de noviembre de 2026
+
+Validación: 19 pruebas Node de mecánicas y reinicio aprobadas, diez entradas HTML y sus estilos/scripts locales verificados; 26 pruebas backend de migración no destructiva/idempotencia y disponibilidad aprobadas sobre bases de prueba. No acredita ensayo visual nuevo ni migración PostgreSQL habitual aplicada.
+
+Usuario pidió trasladar los últimos diez juegos al backend original y dejar de trabajar sobre el repositorio de integración. Añadidos sudoku, torres-hanoi, balanza, secuencia-luces, bolos, une-puntos, refranes, dibujo-cuadricula, codigo-secreto y tesoro, con coleccion.json y CSS/JS compartidos. Catálogo original esperado tras migraciones y carga inicial: treinta juegos. Rutas globales originales, sin organización ni autenticación de la API de colegas. Migración 0013 (posterior a 0012) registra únicamente slugs ausentes como inactivos y conserva fichas/estados existentes; downgrade no elimina fichas. Seed seguro incorpora colección separada conservando grupos con datos. No se aplicó a PostgreSQL local/Neon ni se reiniciaron servicios: Compose local aplica migración al reconstruir; Render usa proceso de migración separado existente. No copiar 0008_games de la integración a este backend.
+
+Alta de Max completada el 2 de noviembre de 2026 tras recuperar .env.render: max@gmail.com, nombre Max, admin activo, MFA obligatorio y pendiente de enrolamiento personal. Creación y auditoría operativa confirmadas en Neon mediante acceso limitado; contraseña aleatoria solo en archivo privado .env.editor-* (el prefijo histórico no determina el rol). Sin correo, reinicios ni cambios a cuentas previas. El bloqueo de configuración descrito abajo quedó resuelto. No guardar secretos aquí ni regenerar credenciales.
+
+Alta solicitada de Max (max@gmail.com), admin, el 2 de noviembre de 2026: script operativo admite --role admin explícito, editor continúa como predeterminado; tres pruebas aisladas de hash/MFA/auditoría/duplicados aprobadas. Intento de alta detenido antes de conectar porque falta .env.render local (solo existe .env). No cuenta ni contraseña creada por este intento. Restaurar perfil privado limitado existente para continuar; no regenerar claves MFA/JWT ni acceso SQL por inferencia. No marcar alta realizada ni sustituir por conexión propietaria.
+
+Actualización de curación del 2 de noviembre: clave guardada por el usuario,
+ambos modelos accesibles; adaptación real y audio TTS recibidos. Respuesta TTS
+usa MIME audio/l16 en minúsculas: corregido content_providers.narrate para admitir
+variaciones de mayúsculas y validar tipo, rate, channels y codec; WAV real capturado
+verificado sin gastar otra solicitud. 25 pruebas específicas aprobadas. WordPress
+responde con texto/autor. No publicación ni cambios en contenido de base habitual;
+worker todavía no activado. Usuario debe aplicar flags locales y reconstruir API,
+después aceptar flujo visual. Las referencias anteriores a clave vacía son
+históricas y resueltas. No mostrar clave ni afirmar cierre del feed móvil.
+
+Curación retomada el 2 de noviembre de 2026: usuario elige Docker local y confirma
+Gemini gratuito sin facturación. 16 pruebas específicas aprobadas con proveedores
+simulados; check_content_postgres.py comprobado en PostgreSQL 16 temporal
+(migración desde tabla anterior, cuotas concurrentes y dos trabajadores sin
+audio duplicado), contenedor retirado. Script ahora establece raíz de imports.
+Settings carga clave Gemini vacía; usuario debe guardarla sin duplicados en el
+archivo privado. No leer/imprimir valor ni habilitar worker automáticamente.
+No se llamó a Gemini ni se modificaron entornos/datos habituales. Proveedores
+reales, recorrido visual completo e integración móvil siguen pendientes.
+
+Alta operativa autorizada (30 de octubre): scripts.create_editor_accounts creó en Neon dos editores solicitados por el usuario, sin correo ni cambios en cuentas anteriores/local. MFA obligatorio por cuenta, todavía sin configurar, hashes Argon2 y contraseñas iniciales aleatorias distintas en archivos privados .env.editor-* ignorados por Git y Docker. Nunca imprimir/versionar sus valores. CLI default solo consulta; --apply crea altas y auditoría juntas y rechaza duplicados sin reset. Rol editor conserva matriz completa (juegos/contenido/marketplace), no limitar ni ampliar permisos por inferencia. Auditoría staff.create identifica operación local, sin suplantar una sesión admin/actor humano, sin IP inventada. Dos tests aislados aprobados y consulta posterior Neon confirma hashes/MFA, dos eventos y cero invitaciones; primer acceso/MFA queda a los titulares. No nueva ruta ni formulario frontend ni reinicio/publicación requerido. Usuario confirmó antes login admin Vercel funcional.
+
 Render preparado (30 de octubre): Dockerfile.render → scripts.run_render valida conexión Neon limitada, esquema y auditoría, usa PORT y base pública de RENDER_EXTERNAL_URL. app/database_urls normaliza URL asyncpg/TLS con SSLContext del sistema; API/Alembic/scripts lo usan, local intacto. prepare_render crea/reutiliza .env.render privado con rol SQL estable (sin rotación al reiniciar), JWT propio y MISMA clave MFA; propietario solo en equipo local. Cuatro contraseñas dev conservadas por instrucción expresa: excepción ADMIN_RENDER_ALLOW_DEV_CREDENTIALS=true solo dev/demo, no admitida en staging/prod; MFA sin cambios. Sin seed/migración/bootstrap automático ni cambios en cuentas/datos. 376 pruebas completas +26 seleccionadas aprobadas, imagen y arranque Linux/Neon comprobados (salud, 11 juegos activos, HTTPS, HEAD iframe); temporal eliminado. Repo elegido LukeDev-a/AgeCare-Administracion-back, sin commit/push/publicación aún. [Guía Render](render-neon.md). No imprimir/versionar .env.render ni copiarlo a Vercel; correo Free/almacenamiento pendientes.
 
 Copia autorizada a Neon (30 de octubre): script operativo scripts.copy_to_neon lee solo la variable de transferencia NEON_MIGRATION_DATABASE_URL, por defecto comprueba sin escribir y con --copy exige destino vacío, API local apagada, host directo Neon y TLS verify-full. Siete pruebas aisladas aprobadas. Ejecutado respaldo+restauración transaccional, sin seed/DROP/clean ni roles/ACL locales; 39 tablas, 20 juegos y cinco cuentas internas, cantidades/huellas coincidentes y trigger de auditoría habilitado. Base local intacta; solo db se inició. backups/neon-20261030T032533210562Z contiene dump/índice/reporte verificado, excluidos de Git y Docker: no leer/mostrar ni publicar su contenido. Neon ocupado no se vuelve a sobrescribir. ADMIN_DATABASE_URL sigue local. Pendientes rol limitado estable para Render, migraciones respecto a código, misma clave de cifrado y credenciales públicas de desarrollo antes de publicar. Audios del volumen no copiados; juegos están en imagen. [Guía](../../../docs/DESPLIEGUE-VERCEL-RENDER-NEON.md).

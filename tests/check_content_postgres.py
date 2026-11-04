@@ -2,9 +2,11 @@
 import asyncio
 import importlib.util
 import os
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from uuid import uuid4
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 os.environ.update({
     'ADMIN_DATABASE_URL': 'postgresql+asyncpg://content_test:content_test@127.0.0.1:55441/content_test',
     'ADMIN_JWT_SECRET': 'content-isolated-test-key-at-least-32-bytes',

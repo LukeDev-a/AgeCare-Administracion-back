@@ -1,5 +1,31 @@
 # Contenido editorial — Fase 10
 
+## Verificación local del 2 de noviembre de 2026
+
+El usuario eligió Docker local y confirmó proyecto gratuito sin facturación.
+Después de guardar su clave, la consulta autenticada de modelos confirmó acceso
+a los dos identificadores configurados. Una adaptación de texto ficticio fue
+recibida y validada. Dos solicitudes TTS devolvieron audio, inicialmente rechazado
+por una diferencia de mayúsculas del MIME (`audio/l16`). Corregido el lector para
+tipos MIME sin distinción de mayúsculas, frecuencia declarada y validación de
+canal/codec. La respuesta real capturada se convirtió y verificó sin otra llamada:
+WAV mono, 24000 Hz, 5,52 segundos. No se publicó contenido ni se guardó en la base.
+
+Consulta real de un post WordPress: texto y autor disponibles; esto no aprueba
+automáticamente derechos ni veracidad. 25 pruebas específicas aprobadas con
+proveedores simulados. PostgreSQL temporal: migración 0004 desde esquema previo,
+cuotas concurrentes y dos trabajadores sin audio duplicado aprobados; contenedor
+retirado. Corrección del script de prueba para resolver imports al ejecutarlo.
+
+El trabajador automático sigue sin activarse desde esta revisión. Para el uso
+local, después de la confirmación gratuita y con clave guardada, configurar
+`ADMIN_GEMINI_FREE_TIER_CONFIRMED=true` y `ADMIN_CONTENT_WORKER_ENABLED=true` en
+el entorno del backend y reconstruir la API. La activación inicia la recopilación
+programada y procesa trabajos guardados, sujetos a los límites configurados.
+Pendiente aceptación del recorrido en consola y del feed móvil; no cerrar fase
+por la prueba directa de proveedores. Las afirmaciones de ausencia de llamadas
+externas de las secciones siguientes corresponden a la implementación inicial.
+
 Implementación del 14 de octubre de 2026. No se leyó `.env`, consumió Gemini, publicó contenido real, migró la base habitual ni reinició Docker durante el desarrollo. El trabajador externo está desactivado por defecto. Esta guía describe código; aceptación y servicios reales siguen por validar.
 
 ## Flujo

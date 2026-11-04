@@ -1,0 +1,7 @@
+{
+  "id": "bolos",
+  "nombre": "Bolos tranquilos",
+  "icono": "bowling",
+  "entrada": "index.html",
+  "descripcion_corta": "Elige dirección y fuerza para derribar los bolos en dos lanzamientos."
+}

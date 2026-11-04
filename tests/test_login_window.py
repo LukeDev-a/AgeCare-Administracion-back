@@ -8,6 +8,7 @@ from sqlalchemy import select
 from app import database, models, login_attempts
 from app.account_security import decrypt, encrypt, new_recovery_codes
 from app.security import hash_password, now_utc
+from app.config import get_settings
 
 pytestmark = pytest.mark.asyncio
 BASE = '/api/v1/admin'
@@ -74,3 +75,51 @@ async def test_success_resets_previous_failures(client):
     assert (await client.post(f'{BASE}/auth/login', json={**good, 'recovery_code': codes[0]})).status_code == 200
     user = await stored(email)
     assert user.failed_attempts == 0 and user.failed_attempt_times == []
+
+
+async def test_lockout_reports_actual_remaining_time_without_extending_it(client, monkeypatch):
+    email, _ = await account()
+    clock = [now_utc()]
+    monkeypatch.setattr(login_attempts, 'now_utc', lambda: clock[0])
+    monkeypatch.setattr('app.routers.auth.now_utc', lambda: clock[0])
+    wrong = {'email': email, 'password': 'Incorrecta123!'}
+    for _ in range(4):
+        response = await client.post(f'{BASE}/auth/login', json=wrong)
+        assert response.json()['error']['details'] is None
+    fifth = await client.post(f'{BASE}/auth/login', json=wrong)
+    detail = fifth.json()['error']['details'][0]
+    assert detail['retry_after_seconds'] == 900
+    clock[0] += timedelta(seconds=73)
+    blocked = await client.post(f'{BASE}/auth/login', json=wrong)
+    assert blocked.status_code == 423
+    remaining = blocked.json()['error']['details'][0]
+    assert remaining['retry_after_seconds'] == 827
+    assert remaining['locked_until'] == detail['locked_until']
+
+
+async def test_specific_dev_exception_does_not_remove_other_accounts_mfa(client, monkeypatch):
+    email, _ = await account()
+    target = await stored(email)
+    settings = get_settings()
+    monkeypatch.setattr(settings, 'mfa_required_roles', 'analyst')
+    monkeypatch.setattr(settings, 'environment', 'dev')
+    monkeypatch.setattr(settings, 'mfa_test_exempt_account_ids', str(target.id))
+    good = {'email': email, 'password': PASSWORD}
+    response = await client.post(f'{BASE}/auth/login', json=good)
+    assert response.status_code == 200
+    headers = {'Authorization': 'Bearer ' + response.json()['access_token']}
+    assert (await client.get(f'{BASE}/auth/me', headers=headers)).json()['mfa_required'] is False
+    refreshed = await client.post(f'{BASE}/auth/refresh', json={'refresh_token': response.json()['refresh_token']})
+    assert refreshed.status_code == 200
+    other, _ = await account()
+    assert (await client.post(f'{BASE}/auth/login', json={'email': other, 'password': PASSWORD})).status_code == 403
+    for environment in ['prod', 'staging']:
+        monkeypatch.setattr(settings, 'environment', environment)
+        response = await client.post(f'{BASE}/auth/login', json=good)
+        assert response.json()['error']['code'] == 'MFA_ENROLLMENT_REQUIRED'
+    monkeypatch.setattr(settings, 'environment', 'dev')
+    async with database.get_session_factory()() as db:
+        row = await db.get(models.AdminUser, target.id)
+        row.mfa_required = True
+        await db.commit()
+    assert (await client.post(f'{BASE}/auth/login', json=good)).json()['error']['code'] == 'MFA_ENROLLMENT_REQUIRED'

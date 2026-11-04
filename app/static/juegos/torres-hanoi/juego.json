@@ -1,0 +1,7 @@
+{
+  "id": "torres-hanoi",
+  "nombre": "Torres de Hanói",
+  "icono": "layers",
+  "entrada": "index.html",
+  "descripcion_corta": "Mueve los discos entre torres, uno a uno y sin poner uno grande sobre uno pequeño."
+}

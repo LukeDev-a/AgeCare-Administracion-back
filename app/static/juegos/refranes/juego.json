@@ -1,0 +1,7 @@
+{
+  "id": "refranes",
+  "nombre": "Completa el refrán",
+  "icono": "words",
+  "entrada": "index.html",
+  "descripcion_corta": "Elige la expresión que completa un refrán conocido y descubre su significado."
+}

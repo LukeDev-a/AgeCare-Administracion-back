@@ -1,0 +1,7 @@
+{
+  "id": "sudoku",
+  "nombre": "Sudoku sencillo",
+  "icono": "numbers",
+  "entrada": "index.html",
+  "descripcion_corta": "Completa un tablero de 4 por 4 con números del 1 al 4."
+}

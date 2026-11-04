@@ -23,17 +23,34 @@ async def test_gemini_text_contract_and_invalid_output(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_pcm_audio_is_wrapped_in_wav_without_network(monkeypatch):
+@pytest.mark.parametrize('mime,rate', [
+    ('audio/L16;codec=pcm;rate=24000', 24000),
+    ('audio/l16; rate=24000; channels=1', 24000),
+    ('audio/pcm;rate=16000', 16000),
+])
+async def test_pcm_audio_is_wrapped_in_wav_without_network(monkeypatch, mime, rate):
     pcm = b'\x01\x00' * 240
     async def audio(data, model):
         assert data['generationConfig']['responseModalities'] == ['AUDIO']
         return {'candidates': [{'content': {'parts': [{'inlineData': {
-            'mimeType': 'audio/L16;codec=pcm;rate=24000', 'data': base64.b64encode(pcm).decode()}}]}}]}
+            'mimeType': mime, 'data': base64.b64encode(pcm).decode()}}]}}]}
     monkeypatch.setattr(providers, 'gemini', audio)
     result = await providers.narrate('Texto aprobado')
     with wave.open(io.BytesIO(result)) as decoded:
-        assert decoded.getframerate() == 24000 and decoded.getnchannels() == 1
+        assert decoded.getframerate() == rate and decoded.getnchannels() == 1
         assert decoded.readframes(240) == pcm
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mime', ['audio/l16;rate=invalid', 'audio/l16;channels=2',
+    'audio/l16;rate=0', 'audio/l16;codec=mp3', 'audio/l16-invalid', None, 123])
+async def test_invalid_audio_metadata_is_rejected(monkeypatch, mime):
+    async def audio(*args):
+        return {'candidates': [{'content': {'parts': [{'inlineData': {
+            'mimeType': mime, 'data': base64.b64encode(b'\x00\x00' * 20).decode()}}]}}]}
+    monkeypatch.setattr(providers, 'gemini', audio)
+    with pytest.raises(providers.ProviderError, match='INVALID_AUDIO_OUTPUT'):
+        await providers.narrate('Prueba')
 
 
 @pytest.mark.asyncio

@@ -1,0 +1,7 @@
+{
+  "id": "tesoro",
+  "nombre": "El tesoro escondido",
+  "icono": "treasure",
+  "entrada": "index.html",
+  "descripcion_corta": "Explora casillas y usa las distancias para localizar el tesoro."
+}

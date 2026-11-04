@@ -1,0 +1,7 @@
+{
+  "id": "dibujo-cuadricula",
+  "nombre": "Descubre el dibujo",
+  "icono": "grid",
+  "entrada": "index.html",
+  "descripcion_corta": "Pinta una cuadrícula pequeña siguiendo las pistas de sus filas y columnas."
+}

@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     mail_worker_enabled: bool = True
     incident_mail_recipients: str = ''  # correos internos separados por coma; vacío no envía
     mfa_required_roles: str = "admin"
+    mfa_test_exempt_account_ids: str = ""  # UUID explícitos; solo environment=dev
     encryption_key: str = ""  # clave Fernet estable, diferente de la clave JWT
 
     # Negocio

@@ -1,0 +1,7 @@
+{
+  "id": "secuencia-luces",
+  "nombre": "Secuencia de luces",
+  "icono": "light",
+  "entrada": "index.html",
+  "descripcion_corta": "Observa las figuras iluminadas a tu ritmo y repite el orden."
+}

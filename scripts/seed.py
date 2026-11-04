@@ -494,11 +494,14 @@ async def seed(*, only_empty: bool = False) -> None:
         if only_empty:
             extra_games = json.loads((Path(__file__).resolve().parents[1] /
                 'app/static/juegos/nuevos.json').read_text(encoding='utf-8'))
+            collection_games = json.loads((Path(__file__).resolve().parents[1] /
+                'app/static/juegos/coleccion.json').read_text(encoding='utf-8'))
             existing_slugs = set((await db.scalars(select(models.GameApp.slug))).all())
             # 0005 registra la colección nueva antes del seed: no debe impedir
             # la carga de los originales. Una colección parcialmente llena se conserva.
             for name, collection, new_collection in [('juegos_originales', JUEGOS, False),
-                                                       ('juegos_nuevos', extra_games, True)]:
+                                                       ('juegos_nuevos', extra_games, True),
+                                                       ('juegos_coleccion', collection_games, True)]:
                 if any(game['slug'] in existing_slugs for game in collection):
                     print(f'Demo {name}: conservado (tiene datos).')
                     continue

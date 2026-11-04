@@ -1,0 +1,7 @@
+{
+  "id": "balanza",
+  "nombre": "Equilibra la balanza",
+  "icono": "balance",
+  "entrada": "index.html",
+  "descripcion_corta": "Combina pesas para conseguir el mismo peso en ambos lados."
+}

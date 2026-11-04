@@ -1,0 +1,72 @@
+[
+  {
+    "slug": "sudoku",
+    "title": "Sudoku sencillo",
+    "description": "Completa un tablero de 4 por 4 con números del 1 al 4.",
+    "category": "Lógica",
+    "target_url": "/static/juegos/sudoku/index.html"
+  },
+  {
+    "slug": "torres-hanoi",
+    "title": "Torres de Hanói",
+    "description": "Mueve los discos entre torres, uno a uno y sin poner uno grande sobre uno pequeño.",
+    "category": "Lógica",
+    "target_url": "/static/juegos/torres-hanoi/index.html"
+  },
+  {
+    "slug": "balanza",
+    "title": "Equilibra la balanza",
+    "description": "Combina pesas para conseguir el mismo peso en ambos lados.",
+    "category": "Cálculo",
+    "target_url": "/static/juegos/balanza/index.html"
+  },
+  {
+    "slug": "secuencia-luces",
+    "title": "Secuencia de luces",
+    "description": "Observa las figuras iluminadas a tu ritmo y repite el orden.",
+    "category": "Memoria",
+    "target_url": "/static/juegos/secuencia-luces/index.html"
+  },
+  {
+    "slug": "bolos",
+    "title": "Bolos tranquilos",
+    "description": "Elige dirección y fuerza para derribar los bolos en dos lanzamientos.",
+    "category": "Coordinación",
+    "target_url": "/static/juegos/bolos/index.html"
+  },
+  {
+    "slug": "une-puntos",
+    "title": "Une los puntos",
+    "description": "Toca los números en orden y descubre un dibujo, sin arrastrar.",
+    "category": "Percepción",
+    "target_url": "/static/juegos/une-puntos/index.html"
+  },
+  {
+    "slug": "refranes",
+    "title": "Completa el refrán",
+    "description": "Elige la expresión que completa un refrán conocido y descubre su significado.",
+    "category": "Lenguaje",
+    "target_url": "/static/juegos/refranes/index.html"
+  },
+  {
+    "slug": "dibujo-cuadricula",
+    "title": "Descubre el dibujo",
+    "description": "Pinta una cuadrícula pequeña siguiendo las pistas de sus filas y columnas.",
+    "category": "Lógica",
+    "target_url": "/static/juegos/dibujo-cuadricula/index.html"
+  },
+  {
+    "slug": "codigo-secreto",
+    "title": "Código secreto",
+    "description": "Deduce una combinación de tres figuras usando las pistas de cada intento.",
+    "category": "Lógica",
+    "target_url": "/static/juegos/codigo-secreto/index.html"
+  },
+  {
+    "slug": "tesoro",
+    "title": "El tesoro escondido",
+    "description": "Explora casillas y usa las distancias para localizar el tesoro.",
+    "category": "Orientación",
+    "target_url": "/static/juegos/tesoro/index.html"
+  }
+]

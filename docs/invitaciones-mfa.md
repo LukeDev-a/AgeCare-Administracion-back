@@ -13,6 +13,8 @@ No se configuraron credenciales SMTP reales ni se aplicó la migración a tu bas
 
 ## Política
 
+Excepción explícita para pruebas (4 de noviembre de 2026): en `ADMIN_ENVIRONMENT=dev`, `ADMIN_MFA_TEST_EXEMPT_ACCOUNT_IDS` admite UUID separados por comas de cuentas sin obligación individual (`mfa_required=false`). Omite solamente la obligación por rol para esos UUID; una cuenta con MFA habilitado sigue verificando su código. No aplica en staging/prod ni elimina obligación individual. Vacío por defecto. Para retirar la excepción, quitar el UUID y redesplegar: accesos/refresh siguientes vuelven a comprobar la política. No desactivar roles globales para una sola cuenta de prueba.
+
 - `ADMIN_MFA_REQUIRED_ROLES=admin` exige MFA a administradores. Para exigirlo a todos: `admin,analyst,support,editor,moderator`.
 - Una invitación puede exigir MFA adicionalmente, aunque su rol sea opcional. Esta exigencia queda guardada en la cuenta.
 - Las cuentas activas existentes que todavía no tengan MFA obtienen un token de configuración de diez minutos tras verificar su contraseña. Ese token no permite acceder a la API administrativa.

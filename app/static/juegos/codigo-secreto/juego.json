@@ -1,0 +1,7 @@
+{
+  "id": "codigo-secreto",
+  "nombre": "Código secreto",
+  "icono": "code",
+  "entrada": "index.html",
+  "descripcion_corta": "Deduce una combinación de tres figuras usando las pistas de cada intento."
+}
