@@ -23,7 +23,7 @@ async def setup(monkeypatch):
     factory = async_sessionmaker(engine, expire_on_commit=False)
     monkeypatch.setattr(database, '_engine', engine)
     monkeypatch.setattr(database, '_session_factory', factory)
-    monkeypatch.setattr(get_settings(), 'incident_mail_recipients', '')
+    monkeypatch.setattr(get_settings(), 'smtp_host', '')
     headers = {}
     async with factory() as db:
         for role in ('admin', 'support', 'analyst', 'editor', 'moderator'):
@@ -145,7 +145,7 @@ async def test_filters_pagination_and_empty_list(setup):
 
 async def test_optional_mail_queue_is_encrypted_transactional_and_delivered_once(setup, monkeypatch):
     client, headers, factory = setup
-    monkeypatch.setattr(get_settings(), 'incident_mail_recipients', 'ops@example.org,ops@example.org,admin@example.org')
+    monkeypatch.setattr(get_settings(), 'smtp_host', 'localhost')
     calls = []
     monkeypatch.setattr(incident_mail, 'send_incident', lambda value: calls.append(value))
     inc = (await client.post(BASE, headers=headers['admin'], json=payload())).json()
@@ -153,11 +153,12 @@ async def test_optional_mail_queue_is_encrypted_transactional_and_delivered_once
     async with factory() as db:
         rows = (await db.scalars(select(models.IncidentEmail))).all()
         assert len(rows) == 2 and all(row.payload_encrypted.startswith('enc:') for row in rows)
-        assert all('ops@example.org' not in row.payload_encrypted for row in rows)
+        assert all('support@example.org' not in row.payload_encrypted for row in rows)
     assert await incident_mail.deliver_pending()
     assert await incident_mail.deliver_pending()
     assert not await incident_mail.deliver_pending()
     assert len(calls) == 2
+    assert {value['email'] for value in calls} == {'admin@example.org', 'support@example.org'}
     async with factory() as db:
         incident = await db.get(models.Incident, UUID(inc['id']))
         assert incident.notification_status == 'sent'
@@ -166,7 +167,10 @@ async def test_optional_mail_queue_is_encrypted_transactional_and_delivered_once
 
 async def test_mail_failures_retry_without_losing_incident(setup, monkeypatch):
     client, headers, factory = setup
-    monkeypatch.setattr(get_settings(), 'incident_mail_recipients', 'ops@example.org')
+    monkeypatch.setattr(get_settings(), 'smtp_host', 'localhost')
+    async with factory() as db:
+        await db.execute(update(models.AdminUser).where(models.AdminUser.role == 'support').values(is_active=False))
+        await db.commit()
     def fail(_): raise RuntimeError('Error de prueba')
     monkeypatch.setattr(incident_mail, 'send_incident', fail)
     inc = (await client.post(BASE, headers=headers['admin'], json=payload())).json()
@@ -182,7 +186,7 @@ async def test_mail_failures_retry_without_losing_incident(setup, monkeypatch):
 
 async def test_queue_rolled_back_with_incident(setup, monkeypatch):
     _, _, factory = setup
-    monkeypatch.setattr(get_settings(), 'incident_mail_recipients', 'ops@example.org')
+    monkeypatch.setattr(get_settings(), 'smtp_host', 'localhost')
     async with factory() as db:
         inc = models.Incident(title='Temporal de prueba', description='No persistir', severity='degraded', status='investigating', started_at=now_utc())
         db.add(inc); await db.flush()
@@ -194,7 +198,10 @@ async def test_queue_rolled_back_with_incident(setup, monkeypatch):
 
 async def test_invalid_mail_recipient_does_not_prevent_registration(setup, monkeypatch):
     client, headers, factory = setup
-    monkeypatch.setattr(get_settings(), 'incident_mail_recipients', 'dirección inválida')
+    monkeypatch.setattr(get_settings(), 'smtp_host', 'localhost')
+    async with factory() as db:
+        await db.execute(update(models.AdminUser).where(models.AdminUser.role == 'support').values(email='dirección inválida'))
+        await db.commit()
     response = await client.post(BASE, headers=headers['admin'], json=payload())
     assert response.status_code == 201 and response.json()['notification_status'] == 'not_configured'
     async with factory() as db:
@@ -202,10 +209,79 @@ async def test_invalid_mail_recipient_does_not_prevent_registration(setup, monke
 
 async def test_incident_mail_uses_own_message_without_invitation_or_description(monkeypatch):
     messages = []
-    monkeypatch.setattr(incident_mail, 'send_message_smtp', lambda message: messages.append(message))
+    monkeypatch.setattr(incident_mail, 'send_message', lambda message: messages.append(message))
     incident_mail.send_incident({'email': 'ops@example.org', 'id': 'id-test', 'title': 'Mantenimiento de prueba',
         'maintenance': True, 'severity': 'outage', 'started_at': '2026-10-26T12:00:00Z'})
     assert messages[0]['To'] == 'ops@example.org'
     assert 'mantenimiento' in messages[0]['Subject']
     assert 'Fuera de servicio' in messages[0].get_content()
     assert 'invitación' not in messages[0].get_content()
+
+
+async def test_recipients_exclude_inactive_and_pending_accounts(setup, monkeypatch):
+    client, headers, factory = setup
+    monkeypatch.setattr(get_settings(), 'smtp_host', 'localhost')
+    async with factory() as db:
+        db.add_all([
+            models.AdminUser(full_name='Pendiente', role='admin', email='pending@example.org', password_hash=None, is_active=True),
+            models.AdminUser(full_name='Inactiva', role='support', email='inactive@example.org', password_hash='test', is_active=False),
+        ])
+        await db.commit()
+    inc = (await client.post(BASE, headers=headers['admin'], json=payload())).json()
+    assert inc['notification_status'] == 'queued'
+    calls = []
+    monkeypatch.setattr(incident_mail, 'send_incident', calls.append)
+    while await incident_mail.deliver_pending():
+        pass
+    assert {value['email'] for value in calls} == {'admin@example.org', 'support@example.org'}
+
+
+@pytest.mark.parametrize('changes', [{'is_active': False}, {'role': 'analyst'}, {'password_hash': None}, {'email': 'changed@example.org'}])
+async def test_pending_mail_rechecks_current_recipient(setup, monkeypatch, changes):
+    client, headers, factory = setup
+    monkeypatch.setattr(get_settings(), 'smtp_host', 'localhost')
+    inc = (await client.post(BASE, headers=headers['admin'], json=payload())).json()
+    async with factory() as db:
+        await db.execute(update(models.AdminUser).where(models.AdminUser.role == 'support').values(**changes))
+        await db.commit()
+    calls = []
+    monkeypatch.setattr(incident_mail, 'send_incident', calls.append)
+    while await incident_mail.deliver_pending():
+        pass
+    assert [value['email'] for value in calls] == ['admin@example.org']
+    async with factory() as db:
+        rows = (await db.scalars(select(models.IncidentEmail))).all()
+        assert sorted(row.status for row in rows) == ['cancelled', 'sent']
+        assert all(row.payload_encrypted is None for row in rows)
+        assert (await db.get(models.Incident, UUID(inc['id']))).notification_status == 'sent'
+
+
+async def test_no_eligible_recipients_preserves_incident(setup, monkeypatch):
+    _, _, factory = setup
+    monkeypatch.setattr(get_settings(), 'smtp_host', 'localhost')
+    async with factory() as db:
+        await db.execute(update(models.AdminUser).values(is_active=False))
+        inc = models.Incident(title='Sin destinatarios', description='Conservar incidente', severity='degraded',
+                              status='investigating', started_at=now_utc())
+        db.add(inc)
+        await db.flush()
+        await incident_mail.queue_incident(db, inc)
+        await db.commit()
+        assert inc.notification_status == 'not_configured'
+        assert await db.scalar(select(models.IncidentEmail.id)) is None
+
+
+async def test_all_recipients_disabled_cancel_mail_without_marking_it_sent(setup, monkeypatch):
+    client, headers, factory = setup
+    monkeypatch.setattr(get_settings(), 'smtp_host', 'localhost')
+    inc = (await client.post(BASE, headers=headers['admin'], json=payload())).json()
+    async with factory() as db:
+        await db.execute(update(models.AdminUser).values(is_active=False))
+        await db.commit()
+    monkeypatch.setattr(incident_mail, 'send_incident', lambda value: pytest.fail('No debe enviar'))
+    while await incident_mail.deliver_pending():
+        pass
+    async with factory() as db:
+        assert (await db.get(models.Incident, UUID(inc['id']))).notification_status == 'not_configured'
+        assert all(row.status == 'cancelled' and row.payload_encrypted is None
+                   for row in (await db.scalars(select(models.IncidentEmail))).all())

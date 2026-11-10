@@ -313,6 +313,7 @@ async def delete_staff(admin_id: UUID, request: Request, db: Db,
     await db.execute(delete(models.InvitationEmail).where(models.InvitationEmail.invitation_id.in_(invitation_ids)))
     await db.execute(delete(models.AdminInvitation).where(models.AdminInvitation.admin_id == target.id))
     await db.execute(delete(models.MfaEnrollment).where(models.MfaEnrollment.admin_id == target.id))
+    await db.execute(delete(models.AdminPasswordReset).where(models.AdminPasswordReset.admin_id == target.id))
     await db.delete(target)
     # Confirma eliminación y auditoría antes de responder: el cliente recarga
     # el listado inmediatamente al recibir 204, antes del teardown de get_db.

@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     allowed_email_domains: str = "wellq.co.uk,wellq.co"  # separados por coma
     frontend_url: str = "http://localhost:5173"
     invitation_hours: int = 24
+    mail_provider: str = "smtp"  # smtp | brevo
+    brevo_api_key: str = ""
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_username: str = ""
@@ -43,7 +45,6 @@ class Settings(BaseSettings):
     smtp_security: str = "starttls"  # starttls | ssl | none (solo desarrollo)
     mail_from: str = ""
     mail_worker_enabled: bool = True
-    incident_mail_recipients: str = ''  # correos internos separados por coma; vacío no envía
     mfa_required_roles: str = "admin"
     mfa_test_exempt_account_ids: str = ""  # UUID explícitos; solo environment=dev
     encryption_key: str = ""  # clave Fernet estable, diferente de la clave JWT

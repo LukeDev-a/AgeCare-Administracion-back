@@ -98,6 +98,22 @@ class MfaEnrollment(Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0)
 
 
+class AdminPasswordReset(Base):
+    __tablename__ = 'admin_password_resets'
+    id: Mapped[uuid.UUID] = pk()
+    admin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('admin_users.id', ondelete='CASCADE'), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    auth_version: Mapped[int] = mapped_column(Integer)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    payload_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default='queued')
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = ts_now()
+
+
 class AuditLog(Base):
     """Registro inmutable (solo INSERT a nivel de permisos de BD)."""
     __tablename__ = "audit_log"

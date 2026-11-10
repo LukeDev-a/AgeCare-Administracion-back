@@ -1,5 +1,40 @@
 # Invitaciones y MFA de la consola
 
+## Recuperación de contraseña por correo — 10 de noviembre de 2026
+
+Desde «¿Olvidaste tu contraseña?» del login, la persona introduce su correo. POST `/api/v1/admin/auth/password-reset/request` devuelve siempre el mismo mensaje 202 para correos válidos, incluidos inexistentes, inactivos, invitaciones pendientes o solicitudes limitadas. Solo cuentas activas con contraseña generan correo. Se eligieron 30 minutos de vigencia, un minuto entre solicitudes aceptadas y máximo tres por cuenta en una hora. Una solicitud aceptada invalida enlaces anteriores. Solicitar el enlace conserva la contraseña y las sesiones actuales.
+
+El token aleatorio de 48 bytes se guarda como hash SHA-256. El enlace usa el fragmento `/recuperar-contrasena#token=…`, generado desde ADMIN_FRONTEND_URL. La pantalla retira el fragmento del historial al abrir y envía token/contraseña en el cuerpo de POST `/auth/password-reset/confirm`, con Cache-Control no-store. Usa contraseña de 8–128 caracteres y confirmación en pantalla, conforme política existente. Nunca envía la contraseña por correo ni inicia sesión automáticamente.
+
+Al confirmar se bloquean la cuenta y la recuperación, se valida uso/vencimiento/revocación/versión y el correo original. El nuevo hash Argon2id, uso del enlace, revocación de sesiones/refresh, incremento de auth_version y auditoría se guardan juntos. Se cierran enrolamientos MFA pendientes para que credenciales anteriores no permitan terminarlos. MFA ya configurado y códigos de recuperación se conservan. Para acceder se vuelve al login y se verifica el segundo factor habitual. Este flujo recupera la contraseña, y la recuperación de un autenticador perdido sigue siendo un proceso independiente.
+
+Migración **0014** añade `admin_password_resets` con estado de token y cola cifrada. El correo se envía después del commit mediante el mismo proveedor SMTP/Brevo y ADMIN_MAIL_WORKER_ENABLED. Se validan nuevamente estado de cuenta, correo, versión y vigencia antes de enviar. Cinco intentos con espera creciente. Tras enviar el enlace se elimina el token de la copia cifrada y se conserva solo el destino cifrado mientras se valida la recuperación. Al cambiar la contraseña se encola un aviso de confirmación sin credenciales. La cola puede repetir un correo si hay caída después de aceptación y antes del commit, como las invitaciones. No hay garantía de entrega al buzón por el estado sent.
+
+Para probar en Docker local, conservar la clave de cifrado y Brevo ya configurados, usar `ADMIN_FRONTEND_URL=http://localhost:5173` y ejecutar `docker compose up -d --build api` desde el backend. Compose aplica 0014 y prepara permisos del rol limitado. Luego probar desde el login con una cuenta propia activa y correo accesible. Cambia la contraseña de esa cuenta y cierra sus sesiones. En Render se debe aplicar 0014 por el procedimiento separado de migraciones y conceder DML de la tabla al rol limitado antes del nuevo despliegue. No copiar la conexión propietaria a Render.
+
+Pruebas aisladas de tokens, límites, MFA, sesiones y envío simulado aprobadas. Migración y carreras de confirmación/solicitud verificadas en PostgreSQL temporal, retirado al terminar. Sin migración local/Neon, reinicios de la API habitual ni restablecimientos de cuentas reales realizados por el agente. Entrega real y revisión visual pendientes del usuario. Diseño contrastado con la [guía de recuperación de OWASP](https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html).
+
+## Brevo por HTTPS — 10 de noviembre de 2026
+
+El transporte compartido admite Brevo para invitaciones y avisos internos de incidentes. Para seleccionarlo, añadir al `.env` del backend junto a `docker-compose.yml` estos valores, conservando las claves existentes.
+
+```ini
+ADMIN_MAIL_PROVIDER=brevo
+ADMIN_BREVO_API_KEY=CLAVE_PRIVADA_GUARDADA_LOCALMENTE
+ADMIN_MAIL_FROM=CORREO_REMITENTE_VERIFICADO_EN_BREVO
+ADMIN_MAIL_WORKER_ENABLED=true
+```
+
+La clave API necesita acceso a emails transaccionales. El remitente debe estar registrado y verificado en Brevo. Con este proveedor las credenciales SMTP no intervienen. `ADMIN_FRONTEND_URL` debe apuntar a la consola local al probar invitaciones locales. Los nuevos incidentes avisan automáticamente a cuentas activas admin/support con contraseña configurada. La antigua variable `ADMIN_INCIDENT_MAIL_RECIPIENTS` quedó retirada y se ignora si permanece en el entorno. Antes de enviar se vuelve a comprobar cuenta, correo y rol. Cambiar destinatarios no reenvía incidentes antiguos.
+
+`python -m scripts.check_mail` comprueba HTTPS/autenticación mediante GET de estadísticas transaccionales, sin enviar mensajes. Su resultado no certifica aprobación del remitente ni llegada a la bandeja de entrada. La prueba real se realiza con un nuevo incidente o una invitación autorizada al destinatario indicado. Aplicar cambios de código/configuración mediante reconstrucción local autorizada. Los trabajadores pueden procesar correos ya encolados al arrancar.
+
+Se conserva la cola cifrada, el envío posterior al commit y los cinco intentos existentes. Brevo acepta el correo mediante POST `/v3/smtp/email`; `sent` indica aceptación del proveedor, no entrega confirmada. Caída tras aceptación y antes del commit puede producir duplicados en el reintento. Clave y cuerpos del proveedor excluidos de logs/errores públicos. SMTP sigue disponible mediante `ADMIN_MAIL_PROVIDER=smtp`, valor predeterminado.
+
+Validación local de esta entrega, 47 pruebas con transportes simulados aprobadas. Consulta real de solo lectura con la clave local confirmó acceso HTTPS a Brevo. Remitente y entrega pendientes de confirmación del usuario. No se enviaron correos ni se reinició Docker durante estas comprobaciones. No hay cambios de esquema ni migraciones.
+
+Referencias oficiales de [envío transaccional](https://developers.brevo.com/reference/send-transac-email) y [claves API](https://help.brevo.com/hc/en-us/articles/40159485019794-Create-and-manage-your-API-keys).
+
 ## Configuración
 
 1. Instala `pip install -r requirements.txt` en el entorno virtual del backend.

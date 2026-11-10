@@ -1,4 +1,4 @@
-"""Avisos internos: cola cifrada en la transacción de creación y SMTP posterior."""
+"""Avisos a cuentas activas admin/support, encolados con el incidente."""
 import asyncio
 import json
 from datetime import timedelta
@@ -8,15 +8,19 @@ from sqlalchemy import select, update
 from app import models
 from app.account_security import encrypt, decrypt
 from app.config import get_settings
+from app.enums import AdminRole
 from app.database import get_session_factory
 from app.errors import ApiError
-from app.invitation_mail import ensure_mail_configured, send_message_smtp
+from app.invitation_mail import ensure_mail_configured, send_message
 from app.security import now_utc
 
 
 async def queue_incident(db, incident):
-    settings = get_settings()
-    configured = [value.strip() for value in settings.incident_mail_recipients.split(',') if value.strip()]
+    configured = (await db.scalars(select(models.AdminUser.email).where(
+        models.AdminUser.is_active.is_(True),
+        models.AdminUser.password_hash.is_not(None),
+        models.AdminUser.role.in_([AdminRole.admin, AdminRole.support]),
+    ))).all()
     if not configured:
         incident.notification_status = 'not_configured'
         return
@@ -46,7 +50,7 @@ def send_incident(payload):
     message.set_content(f"Se registró: {payload['title']}\nSeveridad: {severity}\n"
         f"Inicio: {payload['started_at']}\nIdentificador: {payload['id']}\n\n"
         'Ingresa a la consola de AgeCare para consultar los detalles.\n')
-    send_message_smtp(message)
+    send_message(message)
 
 
 async def deliver_pending():
@@ -57,8 +61,18 @@ async def deliver_pending():
         if mail is None:
             return False
         try:
-            await asyncio.to_thread(send_incident, json.loads(decrypt(mail.payload_encrypted)))
-            mail.status = 'sent'; mail.payload_encrypted = None
+            payload = json.loads(decrypt(mail.payload_encrypted))
+            recipient = await db.scalar(select(models.AdminUser.id).where(
+                models.AdminUser.email == payload['email'], models.AdminUser.is_active.is_(True),
+                models.AdminUser.password_hash.is_not(None),
+                models.AdminUser.role.in_([AdminRole.admin, AdminRole.support]),
+            ))
+            if recipient is None:
+                mail.status = 'cancelled'
+            else:
+                await asyncio.to_thread(send_incident, payload)
+                mail.status = 'sent'
+            mail.payload_encrypted = None
         except Exception:
             # No volcar payloads ni errores SMTP con destinatarios/credenciales.
             mail.attempts += 1
@@ -70,7 +84,8 @@ async def deliver_pending():
         await db.flush()
         states = (await db.scalars(select(models.IncidentEmail.status).where(models.IncidentEmail.incident_id == mail.incident_id))).all()
         if incident:
-            state = 'queued' if 'queued' in states else 'failed' if 'failed' in states else 'sent'
+            state = ('queued' if 'queued' in states else 'failed' if 'failed' in states
+                     else 'sent' if 'sent' in states else 'not_configured')
             # La entrega técnica no es una edición del contenido del incidente.
             await db.execute(update(models.Incident).where(models.Incident.id == incident.id)
                 .values(notification_status=state, updated_at=incident.updated_at))

@@ -8,7 +8,6 @@ from uuid import UUID
 from starlette.requests import Request
 from sqlalchemy import select, text, func
 from app import database, models, incident_mail
-from app.config import get_settings
 from app.errors import ApiError
 from app.routers.ops import patch_incident
 from app.schemas.ops import IncidentPatchIn
@@ -54,9 +53,11 @@ async def verify(before):
     assert sorted(await asyncio.gather(change('observing'), change('observing'))) == [200, 409]
     result = await asyncio.gather(change('resolved', 'Resuelto en prueba'), change('resolved'))
     assert 200 in result and (409 in result or 422 in result)
-    settings = get_settings()
-    settings.incident_mail_recipients = 'ops@example.org,admin@example.org'
     async with factory() as db:
+        db.add_all([models.AdminUser(full_name=role, email=email, role=role, password_hash='test', is_active=True)
+                    for role, email in [('support', 'ops@example.org'), ('admin', 'admin@example.org')]])
+        await db.execute(models.AdminUser.__table__.update().where(models.AdminUser.id == actor_id).values(is_active=False))
+        await db.flush()
         incident = await db.get(models.Incident, ID)
         assert incident.status == 'resolved' and incident.description == before['description']
         assert await db.scalar(select(func.count()).select_from(models.AuditLog)) == 2

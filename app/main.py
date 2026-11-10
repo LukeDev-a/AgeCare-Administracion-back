@@ -10,6 +10,8 @@ async def lifespan(app):
     worker = asyncio.create_task(mail_worker()) if get_settings().mail_worker_enabled else None
     from app.incident_mail import incident_mail_worker
     incident_worker = asyncio.create_task(incident_mail_worker()) if get_settings().mail_worker_enabled else None
+    from app.password_reset import password_reset_worker
+    reset_worker = asyncio.create_task(password_reset_worker()) if get_settings().mail_worker_enabled else None
     from app.content_pipeline import content_worker
     editorial_worker = asyncio.create_task(content_worker()) if get_settings().content_worker_enabled else None
     from app.commercial_analytics import commercial_worker
@@ -17,6 +19,10 @@ async def lifespan(app):
     try:
         yield
     finally:
+        if reset_worker:
+            reset_worker.cancel()
+            with suppress(asyncio.CancelledError):
+                await reset_worker
         if incident_worker:
             incident_worker.cancel()
             with suppress(asyncio.CancelledError):
@@ -72,6 +78,8 @@ api = APIRouter(prefix="/api/v1/admin")
 api.include_router(auth.router)
 from app.routers import account_access
 api.include_router(account_access.router)
+from app.routers import password_reset
+api.include_router(password_reset.router)
 api.include_router(metrics_commercial.router)
 api.include_router(ops.router)
 api.include_router(metrics_roles.router)

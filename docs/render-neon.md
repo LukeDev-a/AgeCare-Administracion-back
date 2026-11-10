@@ -1,5 +1,28 @@
 # Render + Neon — demostración de AgeCare
 
+## Actualización preparada — 10 de noviembre de 2026
+
+Neon migrado de 0013 a 0014 en transacción, con bloqueo y comprobación del destino propietario frente al perfil limitado existente. Añadida únicamente la tabla de recuperación y concedido SELECT/INSERT/UPDATE/DELETE sobre ella al rol limitado de Render. Cantidades de cuentas y juegos conservadas, cola nueva vacía. check_database del perfil limitado aprobó revisión y protección de auditoría. No se cambiaron claves, contraseñas ni cuentas ni se enviaron correos durante esta operación.
+
+El archivo local privado `.env.render-mail`, ignorado por Git y Docker, contiene las cinco variables a añadir o actualizar en Render. Copiar su contenido desde el editor mediante Environment → Add from .env. Mantener las demás variables actuales. El archivo incluye la clave real de Brevo, por lo que no debe publicarse ni pegarse en el chat.
+
+| Variable | Valor o procedencia |
+|---|---|
+| ADMIN_MAIL_PROVIDER | brevo |
+| ADMIN_BREVO_API_KEY | Clave privada de Brevo ya validada localmente |
+| ADMIN_MAIL_FROM | Remitente verificado indicado por el usuario |
+| ADMIN_MAIL_WORKER_ENABLED | true |
+| ADMIN_FRONTEND_URL | https://age-care-administracion-front.vercel.app |
+
+Orden para completar el despliegue.
+
+1. Subir el backend a su repositorio y esperar que Render despliegue el código con migración 0014. La migración ya está aplicada en Neon y no se pone Alembic en Docker Command. El código anterior espera 0013 al reiniciar, por lo que completar este paso antes de redesplegarlo con nuevas variables.
+2. Subir el frontend y esperar el despliegue de Vercel. Conservar su VITE_API_BASE_URL actual, que apunta a Render con el prefijo /api/v1/admin.
+3. Importar `.env.render-mail` en Environment del servicio Render y guardar con redespliegue para activar el correo con el código nuevo. Conservar Dockerfile.render, Docker Command y /health actuales.
+4. Verificar recuperación desde el login público con correo registrado y accesible, enlace que abre Vercel, cambio de contraseña y MFA habitual. Probar una invitación y, si se desea, un incidente nuevo cuyos avisos se dirigen a cuentas activas admin/support.
+
+Los datos comerciales de demostración añadidos localmente no se copian por hacer push. Su carga en Neon requiere una operación separada. El worker editorial/audio conserva las limitaciones de almacenamiento del plan gratuito, detalladas más abajo. Esta preparación no acredita envío desde Render ni actualización de la interfaz pública, pendientes de completar los pasos anteriores. Los párrafos históricos que indican correo pendiente de integración HTTPS quedan superados por Brevo implementado y probado localmente.
+
 ## Conexión Vercel pendiente de confirmar
 
 Frontend público: https://age-care-administracion-front.vercel.app. HTML/JS accesibles y bundle contiene API Render correcta. Preflight OPTIONS desde ese origen agotó timeout30s; todavía sin evidencia de CORS autorizado/login público. Perfil LOCAL .env.render actualizado únicamente en ADMIN_ALLOWS_ORIGINS (Vercel + los dos orígenes locales5173) y ADMIN_FRONTEND_URL (Vercel). Aplicar mismos valores en Render/Environment y desplegar; no reimportar secretos ni regenerarlos. Verificar después OPTIONS y flujo del usuario. No se cambió configuración remota mediante herramientas.

@@ -1,10 +1,12 @@
-"""Cola transaccional de invitaciones y envío SMTP con TLS."""
+"""Cola transaccional de invitaciones y envío SMTP o Brevo HTTPS."""
 import asyncio
 import json
 import smtplib
 import ssl
 from datetime import timedelta
 from email.message import EmailMessage
+from email.utils import parseaddr
+from email_validator import validate_email, EmailNotValidError
 from urllib.parse import urlparse
 
 from sqlalchemy import select
@@ -12,6 +14,7 @@ from sqlalchemy import select
 from app import models
 from app.account_security import cipher, decrypt, encrypt
 from app.config import get_settings
+from app.brevo_mail import send_message_brevo
 from app.database import get_session_factory
 from app.errors import ApiError
 from app.security import as_utc, now_utc
@@ -21,13 +24,25 @@ def ensure_mail_configured():
     settings = get_settings()
     cipher()
     url = urlparse(settings.frontend_url)
-    if not settings.smtp_host or not settings.mail_from or url.scheme not in {"http", "https"} or not url.netloc:
+    if not settings.mail_from or url.scheme not in {"http", "https"} or not url.netloc:
         raise ApiError(503, "MAIL_NOT_CONFIGURED", "El servidor todavía no tiene configurado el envío de invitaciones.")
-    if url.username or url.password or url.query or url.fragment or (settings.smtp_username and not settings.smtp_password):
+    if url.username or url.password or url.query or url.fragment:
         raise ApiError(503, "MAIL_NOT_CONFIGURED", "Revisa la dirección del frontend y las credenciales del correo.")
+    try:
+        validate_email(parseaddr(settings.mail_from)[1], check_deliverability=False)
+    except EmailNotValidError:
+        raise ApiError(503, "MAIL_NOT_CONFIGURED", "Revisa el correo remitente.") from None
+    if settings.environment != "dev" and url.scheme != "https":
+        raise ApiError(503, "MAIL_NOT_CONFIGURED", "Las invitaciones requieren una dirección HTTPS.")
+    if settings.mail_provider == 'brevo':
+        if not settings.brevo_api_key.strip():
+            raise ApiError(503, "MAIL_NOT_CONFIGURED", "Falta configurar la clave API de Brevo.")
+        return
+    if settings.mail_provider != 'smtp' or not settings.smtp_host or (settings.smtp_username and not settings.smtp_password):
+        raise ApiError(503, "MAIL_NOT_CONFIGURED", "Revisa el proveedor y las credenciales del correo.")
     if settings.smtp_security not in {"ssl", "starttls", "none"}:
         raise ApiError(503, "MAIL_NOT_CONFIGURED", "La configuración de correo no es válida.")
-    if settings.environment != "dev" and (settings.smtp_security == "none" or url.scheme != "https"):
+    if settings.environment != "dev" and settings.smtp_security == "none":
         raise ApiError(503, "MAIL_NOT_CONFIGURED", "El correo y las invitaciones requieren conexiones seguras.")
 
 
@@ -43,7 +58,15 @@ def send_smtp(payload: dict):
         f"Acepta la invitación y configura tu contraseña aquí:\n{payload['url']}\n\n"
         f"Este enlace vence el {payload['expires_at']} (UTC) y solo puede usarse una vez.\n"
         "Si no esperabas esta invitación, contacta al administrador.\n")
-    send_message_smtp(message)
+    send_message(message)
+
+
+def send_message(message):
+    ensure_mail_configured()
+    if get_settings().mail_provider == 'brevo':
+        send_message_brevo(message)
+    else:
+        send_message_smtp(message)
 
 
 def send_message_smtp(message):

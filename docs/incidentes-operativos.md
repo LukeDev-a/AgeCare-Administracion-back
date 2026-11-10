@@ -24,28 +24,22 @@ Se bloquea la fila antes de validar para serializar cambios de estado en Postgre
 
 ## Correo opcional
 
-El usuario eligió reutilizar SMTP de las invitaciones, **sin destinatarios por ahora**. No se editó `.env`. Para dejarlo desactivado:
+El 10 de noviembre de 2026 el usuario aprobó destinatarios automáticos. Cada incidente o mantenimiento nuevo genera avisos para las cuentas activas admin/support que ya tengan contraseña. Analyst conserva consulta en la consola, editor/moderator quedan excluidos. Se usa el correo guardado en cada cuenta y se deduplican direcciones.
 
 ```ini
-ADMIN_INCIDENT_MAIL_RECIPIENTS=
-```
-
-Más adelante, en el `.env` del backend y con destinatarios autorizados:
-
-```ini
-ADMIN_INCIDENT_MAIL_RECIPIENTS=operaciones@example.org,soporte@example.org
+ADMIN_MAIL_PROVIDER=brevo
 ADMIN_MAIL_WORKER_ENABLED=true
 ```
 
-Son ejemplos, no direcciones de envío acordadas. Reutiliza ADMIN_SMTP_* y ADMIN_MAIL_FROM existentes; no repetir contraseñas ni ponerlas en VITE_*. Mantener la misma ADMIN_ENCRYPTION_KEY. Cambios de entorno requieren recrear el contenedor (`docker compose up -d --force-recreate api`); si también cambió código, usar `docker compose up -d --build api`.
+La antigua variable ADMIN_INCIDENT_MAIL_RECIPIENTS se ignora. Reutiliza el transporte seleccionado y ADMIN_MAIL_FROM de las invitaciones, con clave Brevo o credenciales SMTP según proveedor. Mantener ADMIN_ENCRYPTION_KEY. Aplicar esta entrega mediante `docker compose up -d --build api`. La configuración de Brevo se detalla en invitaciones-mfa.md.
 
-Sin destinatarios, direcciones inválidas o configuración incompleta, el incidente se guarda con notification_status=not_configured, sin crear avisos. Configuración válida: se deduplican destinatarios y se encola un aviso por correo. Las ediciones no vuelven a notificar y configurar destinatarios no envía registros antiguos automáticamente.
+Sin cuentas destinatarias, direcciones válidas o configuración completa, el incidente se guarda con notification_status=not_configured. Las ediciones no vuelven a notificar ni se incorporan destinatarios nuevos a incidentes anteriores. Antes de cada envío se comprueba que el correo aún pertenezca a una cuenta activa admin/support con contraseña. Si perdió esa condición, se cancela el aviso y se borra el payload. Las filas antiguas de cola pasan por la misma comprobación.
 
 Modelos: Incident.notification_status y nueva IncidentEmail (`ops_incident_emails`, FK a incidente). Migración **0009** agrega columna y tabla sin borrar datos; registros previos quedan not_configured. Guards para instalaciones nuevas con metadata actual. Downgrade conserva los datos deliberadamente.
 
-El payload con destinatario/título/identificador/severidad/inicio se cifra con Fernet; no incluye descripción libre ni notas de resolución. Se elimina al enviar o agotar intentos. Se comparte transporte SMTP/TLS, sin reutilizar el texto o los tokens de invitaciones.
+El payload con destinatario/título/identificador/severidad/inicio se cifra con Fernet; no incluye descripción libre ni notas de resolución. Se elimina al enviar, cancelar o agotar intentos. Se comparte transporte SMTP/TLS o Brevo HTTPS, con texto propio de incidentes.
 
-Un worker ligado a ADMIN_MAIL_WORKER_ENABLED procesa fuera de la petición, después del commit, con bloqueo skip_locked. Reintenta hasta cinco fallos, con espera creciente; no registra errores SMTP/payloads que puedan revelar datos. Estado agregado queued, sent o failed. sent significa aceptación por SMTP, no confirmación de llegada al buzón. La entrega técnica conserva updated_at de la edición de negocio. No hay reenvío manual implementado.
+Un worker ligado a ADMIN_MAIL_WORKER_ENABLED procesa después del commit, con bloqueo skip_locked. Reintenta hasta cinco fallos con espera creciente. Estado agregado queued, failed, sent si hubo al menos un envío aceptado, o not_configured si todos se cancelaron. sent significa aceptación por el proveedor. La entrega técnica conserva updated_at de la edición de negocio. No hay reenvío manual implementado.
 
 Bloqueos evitan envíos simultáneos normales del mismo registro, pero SMTP no garantiza exactamente una entrega ante un fallo después de aceptación y antes de commit. No afirmar entrega exactamente una vez.
 

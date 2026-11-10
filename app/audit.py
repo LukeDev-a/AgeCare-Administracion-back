@@ -10,7 +10,7 @@ SENSITIVE_KEYS = {"password", "password_hash", "mfa_secret", "refresh_hash", "to
                   "access_token", "refresh_token", "otp_code", "authorization",
                   "cookie", "secret", "api_key", "recovery_code", "recovery_codes",
                   "recovery_hashes", "enrollment_token", "secret_encrypted", "payload_encrypted"}
-SENSITIVE_KEYS |= {"smtp_password", "gemini_api_key", "encryption_key", "jwt_secret",
+SENSITIVE_KEYS |= {"smtp_password", "brevo_api_key", "gemini_api_key", "encryption_key", "jwt_secret",
                    "totp", "otp", "mfa_qr", "qr_code", "qr_data_url", "otpauth_uri",
                    "client_secret", "invitation_token", "reset_token"}
 
@@ -58,6 +58,8 @@ BUSINESS_ACTIONS = {
 }
 
 SECURITY_ACTIONS = {
+    'auth.password_reset_request': ('Solicitó recuperación de contraseña', 'Seguridad de cuentas'),
+    'auth.password_reset': ('Restableció su contraseña', 'Seguridad de cuentas'),
     'end_users.demo_list': ('Consultó el listado de cuentas de prueba', 'Usuarios y pacientes · demostración'),
     'patients.demo_list': ('Consultó el listado de pacientes de prueba', 'Usuarios y pacientes · demostración'),
     'end_users.demo_read': ('Consultó una cuenta de prueba', 'Usuarios y pacientes · demostración'),

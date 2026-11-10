@@ -39,14 +39,14 @@ async def snapshot(factory):
         return result
 
 
-async def test_empty_installation_gets_current_demo_data_and_twenty_games(isolated_demo):
+async def test_empty_installation_gets_current_demo_data_and_thirty_games(isolated_demo):
     # 0004 registra control técnico aunque no haya contenido: no bloquear la demo.
     async with isolated_demo() as db:
         db.add(models.ContentControl(key='technical-test', data={'preservar': True}))
         await db.commit()
     await demo.seed(only_empty=True)
     tables = await snapshot(isolated_demo)
-    assert len(tables['games_apps']) == 20
+    assert len(tables['games_apps']) == 30
     assert len(tables['support_tickets']) == 251
     assert len(tables['metrics_daily_users']) == 426
     assert len(tables['content_items']) == 3
@@ -120,7 +120,7 @@ async def test_migration_game_collection_does_not_block_originals_or_resurrect_i
         await db.commit()
     await demo.seed(only_empty=True)
     before = await snapshot(isolated_demo)
-    assert len(before['games_apps']) == 20
+    assert len(before['games_apps']) == 30
     assert all(not row['is_active'] for row in before['games_apps'].values() if row['slug'] == 'domino')
     async with isolated_demo() as db:
         await db.execute(delete(models.GameApp).where(models.GameApp.slug.in_(['trivia', 'reloj'])))
