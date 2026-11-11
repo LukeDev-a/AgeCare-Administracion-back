@@ -1,5 +1,15 @@
 # Mapa del backend
 
+## Programación editorial con requisitos obligatorios — 11 de noviembre de 2026
+
+Cambio acordado: separar guardado incompleto de programación confirmada. content.py rechaza publish_at en creación (REVIEW_REQUIRED) y valida draft/fecha futura/aprobación/procedencia/audio vigente antes de programar por PATCH; rechaza cambios de texto y programación simultáneos sin alterar datos. Cancelación por null conservada. Editar texto ya programado mantiene fecha y bloquea publicación hasta nueva revisión/audio, sin cambios del scheduler. Sin nuevas rutas, columnas ni migración. Doce pruebas tests/test_content.py aprobadas en memoria, sin proveedores reales. Guía docs/contenido-editorial.md. API habitual no reconstruida ni reiniciada; usuario debe aplicar build.
+
+## Demostración comercial cargada en Neon — 10 de noviembre de 2026
+
+Usuario autorizó trasladar la demostración analítica local a la base publicada. Confirmado Neon con 426 días unknown y 18 cuentas analíticas demo, sin conflictos en el rango nuevo. Historial diario cotejado con local, cifras idénticas. Respaldo de siete tablas en backups/commercial-demo-20261110T213637Z con SHA-256, ignorado por Git/Docker. Ejecutado seed_commercial_demo --apply --target neon --complete-legacy-history mediante rol limitado. Confirmados 125 días nuevos, 19.569 cuentas, 15.604 acciones, 2.850 pagos, 28 planes y 18 horas, más clasificación demo de 426 días legados sin cambiar cifras.
+
+Verificación mediante routers con sesiones sobre Neon aprobó mes actual (3.405 descargas, 1.585 altas, 149 bajas), últimos 30 días, año y últimos 12 meses con totales numéricos. Septiembre con 3.921/3.124/413, completo, descargas acumuladas 57.610 y planes de 27.972 usuarios al 10 de noviembre. Datos futuros almacenados siguen fuera del cálculo hasta su fecha. No copia de cuentas internas, reinicios ni acceso a sesión del usuario. Pendiente revisión visual pública por él. Los estados anteriores «solo local» son históricos. Detalles en datos-demo-comerciales.md.
+
 ## Preparación de Render — 10 de noviembre de 2026
 
 Usuario pidió preparar Render antes de subir todos los cambios. Perfiles propietario y limitado cotejados sin mostrar secretos. Neon estaba en 0013 y se aplicó 0014 con bloqueo en una transacción, preservando cantidades de cuentas y juegos y dejando cola nueva vacía. Permisos DML de tabla nueva concedidos al rol limitado existente. check_database con esa credencial aprobó revisión y auditoría protegida. Sin cambios de claves ni cuentas ni correos enviados.

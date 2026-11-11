@@ -1,5 +1,9 @@
 # Render + Neon — demostración de AgeCare
 
+## Publicación verificada — 10 de noviembre de 2026
+
+Usuario indicó que completó los pasos. Verificación pública de solo lectura confirmó salud200, OpenAPI con request/confirm de recuperación y preflight POST200 con el origen Vercel exacto. Frontend y bundle accesibles, con pantalla de recuperación y rutas nuevas apuntando a Render. Sin credenciales, solicitudes de recuperación ni correos reales durante la verificación. Recepción desde Render y cambio real de contraseña pendientes de prueba del usuario con una cuenta propia. El orden de preparación siguiente queda como referencia del despliegue realizado.
+
 ## Actualización preparada — 10 de noviembre de 2026
 
 Neon migrado de 0013 a 0014 en transacción, con bloqueo y comprobación del destino propietario frente al perfil limitado existente. Añadida únicamente la tabla de recuperación y concedido SELECT/INSERT/UPDATE/DELETE sobre ella al rol limitado de Render. Cantidades de cuentas y juegos conservadas, cola nueva vacía. check_database del perfil limitado aprobó revisión y protección de auditoría. No se cambiaron claves, contraseñas ni cuentas ni se enviaron correos durante esta operación.

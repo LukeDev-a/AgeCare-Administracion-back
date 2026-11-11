@@ -13,7 +13,7 @@ from app.deps import Db, require
 from app.enums import ContentStatus, ContentType, AdminRole
 from app.errors import conflict, forbidden, invalid, not_found
 from app.config import get_settings
-from app.content_editorial import current_audio, editorial_ready, invalidate, queue_audio, publish
+from app.content_editorial import current_audio, editorial_ready, invalidate, queue_audio, publish, check_publish
 from app.schemas.common import Page
 from app.schemas.operation import ContentCreateIn, ContentItemOut, ContentPatchIn
 from app.security import as_utc, now_utc
@@ -76,6 +76,8 @@ async def create_item(body: ContentCreateIn, request: Request, db: Db,
                       admin: models.AdminUser = require("content", write=True)):
     if body.publish_at is not None and as_utc(body.publish_at) <= now_utc():
         raise invalid("PUBLISH_AT_PAST", "La fecha de publicación programada debe ser futura.")
+    if body.publish_at is not None:
+        raise conflict('REVIEW_REQUIRED', 'Guarda primero el borrador, aprueba el texto y prepara su audio antes de programar la publicación.')
     item = models.ContentItem(type=body.type, title=body.title, body=body.body,
                               tags=body.tags, publish_at=as_utc(body.publish_at) if body.publish_at else None,
                               created_by=admin.id, created_by_name=admin.full_name,
@@ -100,6 +102,10 @@ async def patch_item(item_id: UUID, body: ContentPatchIn, request: Request, db: 
     if body.publish_at is not None and as_utc(body.publish_at) <= now_utc():
         raise invalid("PUBLISH_AT_PAST", "La fecha de publicación programada debe ser futura.")
     text_changed = (body.body is not None and body.body != item.body) or (body.title is not None and body.title != item.title)
+    if body.publish_at is not None:
+        if text_changed:
+            raise conflict('REVIEW_REQUIRED', 'Guarda y aprueba los cambios del texto y prepara su audio antes de programar.')
+        check_publish(item)
     if text_changed:
         invalidate(item)
     if body.body is not None and body.body != item.body:

@@ -1,5 +1,11 @@
 # Contenido editorial — Fase 10
 
+## Regla de programación confirmada — 11 de noviembre de 2026
+
+Guardar borrador y programar son acciones separadas. POST /items permite crear trabajo incompleto sin publish_at; si se envía una fecha futura al crear, rechaza REVIEW_REQUIRED sin crear registro. Para programar, PATCH /items/{id} con publish_at futuro exige draft, aprobación/procedencia vigentes y audio actual realmente existente. Rechaza REVIEW_REQUIRED o TTS_PENDING antes de modificar datos; si el mismo PATCH cambia título/cuerpo, exige primero guardar y aprobar esos cambios. Continúa SCHEDULE_REQUIRES_DRAFT para publicados/archivados y PUBLISH_AT_PAST para fechas pasadas. PATCH publish_at:null cancela sin exigir audio ni borrar el contenido.
+
+Editar título/cuerpo sin enviar publish_at conserva una fecha previamente confirmada, invalida aprobación/audio y deja la publicación pendiente. El trabajador sigue comprobando preparación al llegar la fecha; no publica versiones incompletas. La UI muestra esa espera. No se exige nueva migración ni se reescriben programaciones ya existentes. Doce pruebas del módulo aprobadas, con proveedores simulados y SQLite en memoria; no se generó contenido ni se modificaron bases reales. Reconstruir API habitual para activar la regla.
+
 ## Verificación local del 2 de noviembre de 2026
 
 El usuario eligió Docker local y confirmó proyecto gratuito sin facturación.

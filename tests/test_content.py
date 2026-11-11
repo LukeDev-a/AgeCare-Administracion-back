@@ -42,16 +42,54 @@ async def test_content_permissions_deletion_and_pagination(client, admin_headers
         assert (await db.get(models.ContentItem, UUID(item['id']))).deleted_at is not None
 
 
-async def test_schedule_validation_and_null_cancellation(client, admin_headers):
+async def test_schedule_validation_and_null_cancellation(client, admin_headers, monkeypatch, tmp_path):
     future = (now_utc() + timedelta(days=1)).isoformat()
-    item = await create(client, admin_headers, publish_at=future)
+    rejected = await client.post(f'{BASE}/items', headers=admin_headers, json={
+        'type': 'news', 'title': 'Creación con fecha', 'body': 'Un borrador no aprobado no se programa.', 'publish_at': future})
+    assert rejected.status_code == 409 and rejected.json()['error']['code'] == 'REVIEW_REQUIRED'
+    item = await create(client, admin_headers)
     url = f"{BASE}/items/{item['id']}"
+    assert (await client.patch(url, headers=admin_headers, json={'publish_at': future})).json()['error']['code'] == 'REVIEW_REQUIRED'
+    assert (await client.post(url + '/approve', headers=admin_headers, json={'version': 1})).status_code == 200
+    assert (await client.patch(url, headers=admin_headers, json={'publish_at': future})).json()['error']['code'] == 'TTS_PENDING'
+    monkeypatch.setattr(get_settings(), 'content_audio_dir', str(tmp_path))
+    (tmp_path / 'schedule.wav').write_bytes(b'RIFF-isolated-audio')
+    async with database._session_factory() as db:
+        stored = await db.get(models.ContentItem, UUID(item['id']))
+        assert stored.publish_at is None
+        stored.audio_file = 'schedule.wav'; stored.audio_version = 1
+        stored.tts_ready = True; stored.audio_status = 'ready'; await db.commit()
+    scheduled = await client.patch(url, headers=admin_headers, json={'publish_at': future})
+    assert scheduled.status_code == 200 and scheduled.json()['publish_at'] is not None
+    blocked = await client.patch(url, headers=admin_headers, json={'body': 'Texto cambiado no puede programarse sin revisión.', 'publish_at': future})
+    assert blocked.status_code == 409 and blocked.json()['error']['code'] == 'REVIEW_REQUIRED'
+    async with database._session_factory() as db:
+        assert (await db.get(models.ContentItem, UUID(item['id']))).body == item['body']
     response = await client.patch(url, headers=admin_headers, json={'publish_at': None})
     assert response.status_code == 200 and response.json()['publish_at'] is None
     assert response.json()['body'] == item['body']
     assert (await client.patch(url, headers=admin_headers, json={'body': None})).status_code == 422
     assert (await client.patch(url, headers=admin_headers, json={'publish_at': '2020-01-01T00:00:00'})).status_code == 422
     assert (await client.post(f'{BASE}/items', headers=admin_headers, json={'type': 'news', 'title': '   ', 'body': ' ' * 20})).status_code == 422
+
+
+async def test_edit_scheduled_text_keeps_date_but_blocks_publication_until_review_and_audio(client, admin_headers, monkeypatch, tmp_path):
+    monkeypatch.setattr(get_settings(), 'content_audio_dir', str(tmp_path))
+    (tmp_path / 'previous.wav').write_bytes(b'RIFF-isolated-audio')
+    item = await create(client, admin_headers)
+    url = f"{BASE}/items/{item['id']}"
+    async with database._session_factory() as db:
+        stored = await db.get(models.ContentItem, UUID(item['id']))
+        stored.approved_version = stored.text_version
+        stored.audio_version = stored.text_version; stored.audio_file = 'previous.wav'; stored.tts_ready = True
+        await db.commit()
+    future = (now_utc() + timedelta(days=1)).isoformat()
+    assert (await client.patch(url, headers=admin_headers, json={'publish_at': future})).status_code == 200
+    changed = await client.patch(url, headers=admin_headers, json={'body': 'Texto nuevo que requiere nueva aprobación editorial.'})
+    assert changed.status_code == 200
+    assert changed.json()['publish_at'] is not None and changed.json()['approved_version'] is None
+    assert changed.json()['audio_available'] is False
+    assert (await client.post(url + '/publish', headers=admin_headers)).json()['error']['code'] == 'REVIEW_REQUIRED'
 
 
 async def test_audio_approval_publication_edit_and_retirement(client, admin_headers, monkeypatch, tmp_path):

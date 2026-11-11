@@ -1,5 +1,13 @@
 # Datos de demostración comercial
 
+## Carga en Neon completada — 10 de noviembre de 2026
+
+Usuario autorizó llevar a la consola pública la demostración preparada en local. Se cotejaron los 426 días históricos de Neon con las cifras locales, idénticas, y se respaldaron siete tablas analíticas antes de escribir en `backups/commercial-demo-20261110T213637Z`, excluido de Git/Docker, con huella SHA-256. Datos y secretos del respaldo no se publican.
+
+Ejecutado `scripts.seed_commercial_demo --apply --target neon --complete-legacy-history` mediante la credencial limitada existente. Confirmados 125 días, 19.569 cuentas analíticas, 15.604 actividades, 2.850 pagos, 28 snapshots de planes y 18 horas completas. Los 426 días históricos quedaron clasificados como demo conservando sus cifras. Se aplicaron las protecciones de conflicto y transacción del script. No se copió la base completa ni se ejecutó scripts.seed destructivo.
+
+Verificados con funciones de los routers sobre Neon los períodos mes actual, últimos 30 días, año en curso y últimos 12 meses. Mes actual con 3.405 descargas, 1.585 altas y 149 bajas. Cohorte septiembre con 3.921 cuentas, 3.124 activas y 413 activas que pasan a pago, seguimiento completo. Descargas acumuladas 57.610 y planes al corte 10 de noviembre con 27.972 usuarios. Sin inicio de sesión público del agente, revisión visual a cargo del usuario. Los registros futuros de diciembre siguen excluidos de resultados observados hasta su fecha. No requiere reinicio de Render.
+
 La carga de `scripts.seed_commercial_demo` prepara datos del 29 de agosto al 31 de diciembre de 2026. Incluye el enlace entre el último dato legado de agosto y los meses solicitados de septiembre, octubre, noviembre y diciembre. El rango es fijo y los identificadores son reproducibles.
 
 Solo se ejecuta con entorno `dev`. Comprueba conflictos en registros diarios, horarios y planes, y revierte si encuentra orígenes diferentes de demo en el rango afectado. Las inserciones y las fuentes demo se confirman en una transacción. Los reintentos conservan registros existentes y evitan duplicados. La carga añade cuentas analíticas sin correos, credenciales ni información personal. Los identificadores empiezan por `commercial-demo-2026-v1-`.
