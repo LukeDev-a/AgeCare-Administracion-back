@@ -70,6 +70,8 @@ class RegistrationsOut(CommercialMetadata):
 class PlanRow(BaseModel):
     plan_code: PlanCode
     name: str
+    billing_unit: Literal['account'] = 'account'
+    billing_period: Literal['month'] = 'month'
     users: int
     share: float | None
     price_clp: int | None

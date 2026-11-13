@@ -1,13 +1,14 @@
 """Secciones 12, 13 y 14 — Configuración, legales y auditoría."""
 from uuid import UUID
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, Response
 from jsonschema import Draft202012Validator
 from sqlalchemy import select
 
 from app import models
 from app.audit import audit
-from app.deps import Db, require
+from app.deps import CurrentAdmin, Db, require
+from app.runtime_settings import cache, notice
 from app.enums import LegalDocType
 from app.errors import ApiError, conflict, invalid, not_found
 from app.schemas.system import (LegalCurrentOut, LegalDocumentOut, LegalVersionDetailOut,
@@ -17,6 +18,12 @@ from app.security import as_utc, now_utc
 from app.legal_documents import current_version, earliest_major_date, effective_at, semver, validate_schedule, versions
 
 router = APIRouter(tags=["Sistema"])
+
+
+@router.get('/runtime/notice')
+async def runtime_notice(db: Db, admin: CurrentAdmin, response: Response):
+    response.headers['Cache-Control'] = 'no-store'
+    return await notice(db)
 
 
 
@@ -62,6 +69,8 @@ async def put_setting(key: str, body: SettingPutIn, request: Request, db: Db,
     await audit(db, request, "settings.update", "system_setting", None,
                 before=before, after={"key": s.key, "name": s.description or s.key,
                                      "value": s.value, "version": s.version, "note": body.change_note})
+    await db.commit()  # Invalida la copia local únicamente después de persistir valor y auditoría.
+    cache.invalidate(key)
     return _setting_out(s)
 
 

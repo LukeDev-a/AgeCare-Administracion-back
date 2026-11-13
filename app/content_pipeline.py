@@ -11,6 +11,7 @@ from sqlalchemy import select, case, or_
 from sqlalchemy.exc import IntegrityError
 from app import models
 from app.config import get_settings
+from app.runtime_settings import feature_enabled
 from app.database import get_session_factory
 from app.security import as_utc, now_utc
 from app.content_editorial import editorial_ready, current_audio, publish
@@ -137,7 +138,8 @@ async def collect_source(db, job):
             if counts['candidates'] >= limit: break
         if counts['candidates'] >= limit or not cursor or len(posts) < params['per_page']: break
     # Conserva TODOS los candidatos; solo un lote se adapta automáticamente.
-    for candidate in selected[:max(0, get_settings().news_adaptation_batch)]:
+    adaptation_batch = max(0, get_settings().news_adaptation_batch) if await feature_enabled(db, 'news_adaptation_enabled') else 0
+    for candidate in selected[:adaptation_batch]:
         candidate.status = 'queued'
         db.add(models.ContentJob(kind='adapt', target_id=candidate.id))
     row.data = {**(row.data or {}), 'cursor': latest.isoformat() if latest else cursor,
@@ -228,7 +230,8 @@ async def schedule():
     async with get_session_factory()() as db:
         local = now_utc().astimezone(ZoneInfo('America/Santiago'))
         row = await control(db, 'collection')
-        if local.hour >= get_settings().news_collection_hour and (row.data or {}).get('scheduled_day') != local.date().isoformat():
+        if (await feature_enabled(db, 'news_collection_enabled') and local.hour >= get_settings().news_collection_hour
+                and (row.data or {}).get('scheduled_day') != local.date().isoformat()):
             row.data = {**(row.data or {}), 'scheduled_day': local.date().isoformat()}
             active = await db.scalar(select(models.ContentJob.id).where(models.ContentJob.kind == 'collect', models.ContentJob.status == 'queued'))
             if not active: db.add(models.ContentJob(kind='collect'))

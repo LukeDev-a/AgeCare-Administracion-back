@@ -9,7 +9,7 @@ from app import models
 SENSITIVE_KEYS = {"password", "password_hash", "mfa_secret", "refresh_hash", "token",
                   "access_token", "refresh_token", "otp_code", "authorization",
                   "cookie", "secret", "api_key", "recovery_code", "recovery_codes",
-                  "recovery_hashes", "enrollment_token", "secret_encrypted", "payload_encrypted"}
+                  "recovery_hashes", "enrollment_token", "secret_encrypted", "payload_encrypted", "email_encrypted", "token_hash"}
 SENSITIVE_KEYS |= {"smtp_password", "brevo_api_key", "gemini_api_key", "encryption_key", "jwt_secret",
                    "totp", "otp", "mfa_qr", "qr_code", "qr_data_url", "otpauth_uri",
                    "client_secret", "invitation_token", "reset_token"}
@@ -58,6 +58,11 @@ BUSINESS_ACTIONS = {
 }
 
 SECURITY_ACTIONS = {
+    'auth.mfa_recovery_request': ('Solicitó recuperar el acceso MFA', 'Seguridad de cuentas'),
+    'auth.mfa_recovery_confirm': ('Confirmó por correo su solicitud MFA', 'Seguridad de cuentas'),
+    'auth.mfa_recovery_failed': ('Verificación de recuperación MFA rechazada', 'Seguridad de cuentas'),
+    'staff.mfa_recovery_approve': ('Aprobó el restablecimiento MFA', 'Seguridad de cuentas'),
+    'staff.mfa_recovery_reject': ('Rechazó el restablecimiento MFA', 'Seguridad de cuentas'),
     'auth.password_reset_request': ('Solicitó recuperación de contraseña', 'Seguridad de cuentas'),
     'auth.password_reset': ('Restableció su contraseña', 'Seguridad de cuentas'),
     'end_users.demo_list': ('Consultó el listado de cuentas de prueba', 'Usuarios y pacientes · demostración'),
@@ -97,7 +102,7 @@ async def audit(db: AsyncSession, request: Request, action: str,
         action=action, entity_type=entity_type, entity_id=entity_id,
         before=_mask(before), after=_mask(after),
         event_metadata=_mask({k: v for k, v in (metadata or {}).items()
-                              if k in {"outcome", "reason", "page", "page_size"}}) or None,
+                              if k in {"outcome", "reason", "page", "page_size", "request_id", "identity_verified"}}) or None,
         ip=request.client.host if request.client else None,
         user_agent=(request.headers.get("user-agent") or "")[:300],
     ))

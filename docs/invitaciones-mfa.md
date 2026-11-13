@@ -1,5 +1,9 @@
 # Invitaciones y MFA de la consola
 
+## Pérdida del autenticador y todos los códigos — 12 de noviembre de 2026
+
+Implementado flujo separado de recuperación MFA con confirmación de contraseña/correo y decisión de otro admin. Ver [guía de recuperación MFA](recuperacion-mfa.md) para reglas, rutas, operación y pruebas. La afirmación histórica de recuperación administrativa «pendiente» queda superada por esta implementación; su aplicación a bases habituales y validación manual siguen pendientes. No sustituye los códigos de un uso existentes ni recupera MFA automáticamente mediante el correo.
+
 ## Recuperación de contraseña por correo — 10 de noviembre de 2026
 
 Desde «¿Olvidaste tu contraseña?» del login, la persona introduce su correo. POST `/api/v1/admin/auth/password-reset/request` devuelve siempre el mismo mensaje 202 para correos válidos, incluidos inexistentes, inactivos, invitaciones pendientes o solicitudes limitadas. Solo cuentas activas con contraseña generan correo. Se eligieron 30 minutos de vigencia, un minuto entre solicitudes aceptadas y máximo tres por cuenta en una hora. Una solicitud aceptada invalida enlaces anteriores. Solicitar el enlace conserva la contraseña y las sesiones actuales.

@@ -41,7 +41,8 @@ async def test_read_update_version_responsible_and_audit(client, admin_headers):
     assert data['updated_at'] and data['updated_by']['name']
     assert await audit_count() == count + 1
     async with database.get_session_factory()() as db:
-        log = await db.scalar(select(models.AuditLog).where(models.AuditLog.action == 'settings.update').order_by(models.AuditLog.created_at.desc()))
+        log = await db.scalar(select(models.AuditLog).where(models.AuditLog.action == 'settings.update',
+            models.AuditLog.after['key'].as_string() == key).order_by(models.AuditLog.created_at.desc()))
         assert log.after['note'] == 'Ajuste operativo'
         assert log.after['key'] == key and log.after['name'] == 'Parámetro de prueba'
     conflict = await client.put(f'{BASE}/settings/{key}', headers=admin_headers, json=payload)
@@ -89,3 +90,28 @@ async def test_unknown_key_and_missing_auth(client, admin_headers):
                          json={'value': 1, 'version': 1, 'change_note': 'Clave inexistente'})]:
         assert response.status_code == 404 and response.json()['error']['code'] == 'UNKNOWN_SETTING'
     assert (await client.get(f'{BASE}/settings')).status_code == 401
+
+
+async def test_plan_prices_update_preserves_historical_metrics(client, admin_headers):
+    before = (await client.get(f'{BASE}/metrics/commercial/plans', headers=admin_headers)).json()
+    assert before['plans']
+    assert all(row['billing_unit'] == 'account' and row['billing_period'] == 'month'
+               for row in before['plans'])
+    setting = (await client.get(f'{BASE}/settings', headers=admin_headers,
+                               params={'key': 'plan_prices'})).json()['settings'][0]
+    prices = {**setting['value'], 'gold': setting['value']['gold'] + 100}
+    count = await audit_count()
+    payload = {'value': prices, 'version': setting['version'], 'change_note': 'Ajuste de tarifa mensual por cuenta'}
+    saved = await client.put(f'{BASE}/settings/plan_prices', headers=admin_headers, json=payload)
+    assert saved.status_code == 200, saved.text
+    assert saved.json()['value'] == prices
+    assert saved.json()['version'] == setting['version'] + 1
+    assert await audit_count() == count + 1
+    after = (await client.get(f'{BASE}/metrics/commercial/plans', headers=admin_headers)).json()
+    assert after == before  # tarifa vigente y registro histórico son fuentes distintas
+    invalid = await client.put(f'{BASE}/settings/plan_prices', headers=admin_headers,
+        json={**payload, 'version': saved.json()['version'], 'value': {**prices, 'gold': -1}})
+    assert invalid.status_code == 422 and invalid.json()['error']['code'] == 'INVALID_VALUE'
+    current = (await client.get(f'{BASE}/settings', headers=admin_headers,
+                               params={'key': 'plan_prices'})).json()['settings'][0]
+    assert current == saved.json()

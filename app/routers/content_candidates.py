@@ -13,6 +13,7 @@ from app.security import now_utc
 from app.config import get_settings
 from app.schemas.operation import ContentItemOut
 from app.routers.content import _saved
+from app.runtime_settings import feature_enabled, require_feature
 
 router = APIRouter(prefix='/content', tags=['Revisión editorial'])
 
@@ -49,9 +50,11 @@ async def jobs(db: Db):
 
 
 @router.get('/runtime', dependencies=[require('content')])
-async def runtime():
+async def runtime(db: Db):
     settings = get_settings()
-    return {'worker_enabled': settings.content_worker_enabled,
+    return {'collection_enabled': await feature_enabled(db, 'news_collection_enabled'),
+            'adaptation_enabled': await feature_enabled(db, 'news_adaptation_enabled'),
+            'worker_enabled': settings.content_worker_enabled,
             'gemini_ready': bool(settings.gemini_api_key and settings.gemini_free_tier_confirmed),
             'collection_hour': settings.news_collection_hour, 'timezone': 'America/Santiago',
             'collection_limit': settings.news_collection_limit, 'adaptation_batch': settings.news_adaptation_batch}
@@ -59,6 +62,7 @@ async def runtime():
 
 @router.post('/collect', status_code=202)
 async def collect_now(request: Request, db: Db, admin: models.AdminUser = require('content', write=True)):
+    await require_feature(db, 'news_collection_enabled')
     await control(db, 'collection')
     if await db.scalar(select(models.ContentJob.id).where(models.ContentJob.kind == 'collect',
             models.ContentJob.status.in_(['queued', 'waiting_quota']))):
@@ -73,6 +77,7 @@ async def collect_now(request: Request, db: Db, admin: models.AdminUser = requir
 @router.post('/candidates/{candidate_id}/adapt', status_code=202)
 async def adapt_candidate(candidate_id: UUID, request: Request, db: Db,
                            admin: models.AdminUser = require('content', write=True)):
+    await require_feature(db, 'news_adaptation_enabled')
     candidate = await get_candidate(db, candidate_id)
     if candidate.item_id or candidate.status == 'discarded':
         raise conflict('CANDIDATE_UNAVAILABLE', 'El candidato ya tiene borrador o fue descartado.')

@@ -1,5 +1,23 @@
 # Render + Neon — demostración de AgeCare
 
+## Migraciones aplicadas a Neon — 12 de noviembre de 2026 (Santiago)
+
+Usuario autorizó al agente las migraciones/permisos y reservó los push para sí. Neon estaba en0014; aplicadas0015 y0016 en una transacción con bloqueo, timeout y comprobación de preservación. Concedido SELECT/INSERT/UPDATE/DELETE únicamente sobre admin_mfa_recoveries y mfa_recovery_emails al rol limitado existente. check_database con esa credencial aprobó head0016, ausencia de privilegios elevados/propiedad/DDL y auditoría solo SELECT/INSERT con trigger inmutable. Ambas tablas nuevas tienen0 filas; no se enviaron correos ni se configuró MFA de nadie.
+
+Conservadas las huellas/filas de38 tablas anteriores de negocio, y las3 filas originales de system_settings completas, incluidas sus versiones. Nuevas claves feature_flags/system_texts incorporadas sin sobrescribir valores; disponibilidad inicial habilitada y aviso oculto. Perfiles privados .env/.env.render/.env.render-mail idénticos antes/después, sin rotar credenciales ni clave MFA. Respaldo **de configuración y revisión anterior**, cifrado con la clave estable, más manifiesto de preservación/reporte en backups/neon-schema-0016-20261113T002902265990Z (sufijo UTC; operación del12 en Santiago). No es un dump completo de la base. Archivos excluidos de Git/Docker.
+
+Procedimiento reproducible scripts.migrate_neon_0016: sin --apply solo consulta; con --apply verifica mismo destino propietario/limitado, TLS real del cliente, revisión admitida y head local0016, guarda respaldo cifrado, aplica solo0015/0016 y concede permisos acotados. No usar scripts.prepare_render para esta operación: no se necesitan cambios de rol ni perfiles. pg_stat_ssl refleja el tramo interno del proxy Neon y no acredita el TLS del cliente; la comprobación inicial se detuvo sin cambios por esa lectura, corregida verificando transporte/certificado del cliente antes de aplicar.
+
+**Ahora corresponde al usuario hacer push del backend**, esperar despliegue correcto de Render y luego push del frontend/Vercel. La base está preparada; no se hicieron commits, push, cambios de Environment ni reinicios/despliegues por el agente. Las indicaciones de «0015/0016 pendientes en Neon» siguientes quedan superadas; no se afirma que las rutas nuevas estén publicadas hasta esos push y verificación posterior.
+
+## Actualización de configuración0016 — 12 de noviembre de 2026
+
+La revisión nueva requerida es0016: incorpora claves feature_flags y system_texts, conservando valores existentes. No añade tablas ni permisos sobre system_settings. Aplicar todas las revisiones pendientes mediante la conexión propietaria antes de publicar el backend: si0015 aún está pendiente, también crea sus dos tablas y requiere DML para el rol limitado existente. Mantener permisos de audit_log y credenciales. La aplicación a Neon sigue pendiente; solo se verificó con PostgreSQL temporal. Guía [configuracion-operativa.md](configuracion-operativa.md). La sección anterior en el tiempo que menciona0015 sola describe la entrega MFA previa.
+
+## Recuperación MFA: preparar antes de desplegar — 12 de noviembre de 2026
+
+La entrega añade migración 0015 y dos tablas: admin_mfa_recoveries y mfa_recovery_emails. Todavía no aplicada a Neon. Antes de publicar el backend, migrar por separado mediante la conexión propietaria y otorgar DML de ambas al rol limitado existente; no elevar el rol de Render ni alterar restricciones de audit_log. run_render exige head y rechazará arrancar hasta aplicar 0015. No nuevas variables: conserva clave MFA, proveedor de correo, worker habilitado y URL pública de frontend. Después publicar frontend con /recuperar-mfa y probar con dos cuentas de prueba. Procedimiento y alcance en [recuperacion-mfa.md](recuperacion-mfa.md). No se hicieron operaciones remotas en esta entrega.
+
 ## Publicación verificada — 10 de noviembre de 2026
 
 Usuario indicó que completó los pasos. Verificación pública de solo lectura confirmó salud200, OpenAPI con request/confirm de recuperación y preflight POST200 con el origen Vercel exacto. Frontend y bundle accesibles, con pantalla de recuperación y rutas nuevas apuntando a Render. Sin credenciales, solicitudes de recuperación ni correos reales durante la verificación. Recepción desde Render y cambio real de contraseña pendientes de prueba del usuario con una cuenta propia. El orden de preparación siguiente queda como referencia del despliegue realizado.

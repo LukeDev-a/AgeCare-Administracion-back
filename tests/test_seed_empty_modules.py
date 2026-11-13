@@ -61,6 +61,18 @@ async def test_empty_installation_gets_current_demo_data_and_thirty_games(isolat
     assert await snapshot(isolated_demo) == before
 
 
+async def test_runtime_migration_keys_do_not_block_legacy_settings_seed(isolated_demo):
+    async with isolated_demo() as db:
+        db.add_all([models.SystemSetting(key=key, value={'keep': True}, value_schema={}, description='Conservar', version=7)
+                    for key in ('system_texts', 'feature_flags')])
+        await db.commit()
+    await demo.seed(only_empty=True)
+    async with isolated_demo() as db:
+        rows = {row.key: row for row in (await db.scalars(select(models.SystemSetting))).all()}
+        assert set(rows) == {'system_texts', 'feature_flags', 'plan_prices', 'churn_definition', 'ops_thresholds.api_core'}
+        assert rows['system_texts'].version == 7 and rows['feature_flags'].value == {'keep': True}
+
+
 async def test_accounts_mfa_sessions_and_edited_values_survive_restarts(isolated_demo):
     async with isolated_demo() as db:
         user = models.AdminUser(full_name='Cuenta personalizada', email=f'{uuid4()}@wellq.co.uk',

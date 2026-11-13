@@ -114,6 +114,37 @@ class AdminPasswordReset(Base):
     created_at: Mapped[datetime] = ts_now()
 
 
+class AdminMfaRecovery(Base):
+    __tablename__ = 'admin_mfa_recoveries'
+    id: Mapped[uuid.UUID] = pk()
+    admin_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('admin_users.id', ondelete='CASCADE'), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    auth_version: Mapped[int] = mapped_column(Integer)
+    email_encrypted: Mapped[str] = mapped_column(Text)
+    reason: Mapped[str] = mapped_column(String(500))
+    status: Mapped[str] = mapped_column(String(20), default='awaiting_email')
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    decided_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+    decided_by_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    decision_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = ts_now()
+
+
+class MfaRecoveryEmail(Base):
+    __tablename__ = 'mfa_recovery_emails'
+    id: Mapped[uuid.UUID] = pk()
+    recovery_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('admin_mfa_recoveries.id', ondelete='CASCADE'), index=True)
+    recipient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('admin_users.id', ondelete='CASCADE'), index=True)
+    kind: Mapped[str] = mapped_column(String(20))
+    payload_encrypted: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default='queued')
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = ts_now()
+
+
 class AuditLog(Base):
     """Registro inmutable (solo INSERT a nivel de permisos de BD)."""
     __tablename__ = "audit_log"
@@ -191,6 +222,7 @@ class MetricsHourlyUsers(Base):
 
 
 class MetricsPlanSnapshot(Base):
+    # Regla comercial común: precios mensuales por cuenta. Conservar los valores del corte.
     __tablename__ = "metrics_plan_snapshot"
     id: Mapped[uuid.UUID] = pk()
     data_origin: Mapped[str] = mapped_column(String(12), default='unknown', server_default='unknown')

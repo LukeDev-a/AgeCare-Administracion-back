@@ -7,11 +7,15 @@ from app.invitation_mail import mail_worker
 
 @asynccontextmanager
 async def lifespan(app):
+    from app.runtime_settings import refresh_worker
+    settings_worker = asyncio.create_task(refresh_worker())
     worker = asyncio.create_task(mail_worker()) if get_settings().mail_worker_enabled else None
     from app.incident_mail import incident_mail_worker
     incident_worker = asyncio.create_task(incident_mail_worker()) if get_settings().mail_worker_enabled else None
     from app.password_reset import password_reset_worker
     reset_worker = asyncio.create_task(password_reset_worker()) if get_settings().mail_worker_enabled else None
+    from app.mfa_recovery import recovery_mail_worker
+    mfa_worker = asyncio.create_task(recovery_mail_worker()) if get_settings().mail_worker_enabled else None
     from app.content_pipeline import content_worker
     editorial_worker = asyncio.create_task(content_worker()) if get_settings().content_worker_enabled else None
     from app.commercial_analytics import commercial_worker
@@ -19,6 +23,13 @@ async def lifespan(app):
     try:
         yield
     finally:
+        settings_worker.cancel()
+        with suppress(asyncio.CancelledError):
+            await settings_worker
+        if mfa_worker:
+            mfa_worker.cancel()
+            with suppress(asyncio.CancelledError):
+                await mfa_worker
         if reset_worker:
             reset_worker.cancel()
             with suppress(asyncio.CancelledError):
@@ -78,6 +89,8 @@ api = APIRouter(prefix="/api/v1/admin")
 api.include_router(auth.router)
 from app.routers import account_access
 api.include_router(account_access.router)
+from app.routers import mfa_recovery
+api.include_router(mfa_recovery.router)
 from app.routers import password_reset
 api.include_router(password_reset.router)
 api.include_router(metrics_commercial.router)

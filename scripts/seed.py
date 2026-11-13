@@ -111,7 +111,11 @@ async def seed(*, only_empty: bool = False) -> None:
                 occupied = False
                 for model in module_models:
                     pk = next(iter(model.__table__.primary_key.columns))
-                    if await db.scalar(select(pk).limit(1)) is not None:
+                    probe = select(pk)
+                    if model is models.SystemSetting:
+                        # Las claves de 0016 no impiden la carga inicial del grupo demo.
+                        probe = probe.where(models.SystemSetting.key.not_in(('system_texts', 'feature_flags')))
+                    if await db.scalar(probe.limit(1)) is not None:
                         occupied = True
                         break
                 if not occupied:
@@ -406,7 +410,7 @@ async def seed(*, only_empty: bool = False) -> None:
         # ---- Configuración ----
         add_all([
             models.SystemSetting(
-                key="plan_prices", description="Precios mensuales por plan (CLP).",
+                key="plan_prices", description="Precios mensuales por cuenta y plan (CLP).",
                 value={"gold": 1000, "platinum": 10000, "provider": 5000},
                 value_schema={"type": "object",
                               "properties": {"gold": {"type": "integer", "minimum": 0},
