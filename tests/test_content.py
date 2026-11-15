@@ -89,7 +89,15 @@ async def test_edit_scheduled_text_keeps_date_but_blocks_publication_until_revie
     assert changed.status_code == 200
     assert changed.json()['publish_at'] is not None and changed.json()['approved_version'] is None
     assert changed.json()['audio_available'] is False
+    assert changed.json()['audio_status'] == 'pending'
+    async with database._session_factory() as db:
+        jobs = (await db.scalars(select(models.ContentJob).where(
+            models.ContentJob.target_id == UUID(item['id']),
+            models.ContentJob.version == changed.json()['text_version']))).all()
+        assert not jobs, 'Editar no solicita audio antes de aprobar la nueva versión'
     assert (await client.post(url + '/publish', headers=admin_headers)).json()['error']['code'] == 'REVIEW_REQUIRED'
+    approved = await client.post(url + '/approve', headers=admin_headers, json={'version': changed.json()['text_version']})
+    assert approved.status_code == 200 and approved.json()['audio_status'] == 'queued'
 
 
 async def test_audio_approval_publication_edit_and_retirement(client, admin_headers, monkeypatch, tmp_path):

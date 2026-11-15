@@ -1,5 +1,9 @@
 # Contenido editorial — Fase 10
 
+## Audio al editar — 15 de noviembre de 2026
+
+PATCH de título/cuerpo invalida aprobación y audio, conserva programación y deja audio_status=pending; ya no llama queue_audio antes de aprobar. POST approve solicita el audio de la versión revisada. No cambia esquema ni reescribe trabajos previos; la UI prioriza aprobación incluso ante colas legadas.12 pruebas del módulo en SQLite en memoria con proveedor simulado aprobadas, incluida ausencia de trabajo para la nueva versión antes de aprobar y queued después de aprobar. Sin datos reales ni llamadas Gemini. Requiere despliegue del backend; no migración.
+
 ## Regla de programación confirmada — 11 de noviembre de 2026
 
 Guardar borrador y programar son acciones separadas. POST /items permite crear trabajo incompleto sin publish_at; si se envía una fecha futura al crear, rechaza REVIEW_REQUIRED sin crear registro. Para programar, PATCH /items/{id} con publish_at futuro exige draft, aprobación/procedencia vigentes y audio actual realmente existente. Rechaza REVIEW_REQUIRED o TTS_PENDING antes de modificar datos; si el mismo PATCH cambia título/cuerpo, exige primero guardar y aprobar esos cambios. Continúa SCHEDULE_REQUIRES_DRAFT para publicados/archivados y PUBLISH_AT_PAST para fechas pasadas. PATCH publish_at:null cancela sin exigir audio ni borrar el contenido.

@@ -1,5 +1,9 @@
 # Mapa del backend
 
+## Edición editorial espera aprobación antes de encolar audio — 15 de noviembre de 2026
+
+Quitada llamada prematura queue_audio en PATCH content: invalidate ya deja pending y sin aprobación; POST approve conserva encolado. Programación y validación de publicación sin cambios, sin migración.12 pruebas de contenido aprobadas en SQLite en memoria/proveedor simulado, ninguna base habitual ni Gemini real utilizado. Ver contenido-editorial.md. Despliegue por usuario pendiente.
+
 ## Neon preparado hasta0016 — 12 de noviembre de 2026
 
 Usuario delegó migraciones/permisos, mantiene push a su cargo. Ejecutadas0014→0015→0016 atómicamente mediante scripts.migrate_neon_0016 --apply, después de consultar destino/versiones y verificar TLS del cliente y rol limitado. DML concedido solo en las dos tablas MFA nuevas; check_database de Render aprobó esquema, rol limitado y auditoría protegida.38 tablas anteriores cotejadas sin cambios y3 configuraciones originales conservadas, dos claves nuevas incorporadas y colas MFA vacías. No cambios de cuentas/credenciales/perfiles ni correos. Respaldo cifrado de configuración/revisión y manifiesto/reporte privado en backups/neon-schema-0016-20261113T002902265990Z. No es un respaldo completo de todos los datos. Pendiente push backend por usuario, despliegue Render, luego frontend/Vercel y revisión publicada. Los pendientes de migración Neon anteriores son históricos. Guía docs/render-neon.md.

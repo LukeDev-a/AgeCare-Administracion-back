@@ -118,8 +118,6 @@ async def patch_item(item_id: UUID, body: ContentPatchIn, request: Request, db: 
         item.publish_at = as_utc(body.publish_at) if body.publish_at else None
     await db.flush()
     await db.refresh(item)
-    if text_changed:
-        await queue_audio(db, item)
     await audit(db, request, "content.update", "content_item", item.id, before=before,
                 after={"title": item.title, "text_version": item.text_version, "tags": item.tags,
                        "publish_at": item.publish_at.isoformat() if item.publish_at else None})
