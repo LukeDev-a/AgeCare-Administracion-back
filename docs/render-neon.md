@@ -1,5 +1,15 @@
 # Render + Neon — demostración de AgeCare
 
+## Directorio migrado a0017 — 16 de noviembre de 2026
+
+Usuario autorizó aplicar las migraciones a Neon. Consulta previa confirmó0016,32 cuentas,7 pacientes y14 vínculos;25 pruebas dirigidas aprobadas antes de aplicar. scripts.migrate_neon_0017 --apply ejecutó0017 en una transacción: renombró demo_app_accounts/demo_app_patients/demo_app_memberships a app_accounts/app_patients/app_memberships y sustituyó únicamente las32 identidades y7 nombres de paciente originales que coincidían con el catálogo de ejemplo. UUID, estados, fechas, vínculos y demás campos comparados completos con el resultado previsto;0 relaciones huérfanas. Las38 tablas restantes, incluida configuración/cuentas administrativas/colas/auditoría, conservaron sus huellas dentro de la operación.
+
+Respaldo cifrado de las tres tablas del directorio, revisión previa, permisos y manifiesto en backups/neon-schema-0017-20261116T172641927183Z/before.enc; reporte agregado en report.json. No es un respaldo completo de las otras tablas. Conservada la clave de cifrado y los perfiles privados, sin envíos de correo ni seed. ACL del directorio conservadas; comprobación posterior con rol limitado de Render aprobó head0017, lectura/DML de las tablas renombradas y protección inmutable de auditoría. No se ejecutó la API ni se reinició Render: se verificaron sus condiciones de base de datos.
+
+**Siguiente paso: push del backend por el usuario y comprobar el despliegue de Render.** El código anterior del directorio utiliza los nombres antiguos y debe actualizarse junto con esta migración. No se crearon commits ni se publicaron cambios. La integración móvil continúa pendiente; estos registros siguen siendo ficticios y sus direcciones de ejemplo no autorizan correos. Las menciones históricas a0017 pendiente quedan superadas.
+
+El procedimiento nuevo admite solo0016→0017 o comprobación de0017; sin --apply solo consulta. Ante diferencias no previstas revierte la transacción. Si una comprobación posterior al commit falla, informa la fase y requiere revisión: no promete reversión automática después del commit.
+
 ## Migraciones aplicadas a Neon — 12 de noviembre de 2026 (Santiago)
 
 Usuario autorizó al agente las migraciones/permisos y reservó los push para sí. Neon estaba en0014; aplicadas0015 y0016 en una transacción con bloqueo, timeout y comprobación de preservación. Concedido SELECT/INSERT/UPDATE/DELETE únicamente sobre admin_mfa_recoveries y mfa_recovery_emails al rol limitado existente. check_database con esa credencial aprobó head0016, ausencia de privilegios elevados/propiedad/DDL y auditoría solo SELECT/INSERT con trigger inmutable. Ambas tablas nuevas tienen0 filas; no se enviaron correos ni se configuró MFA de nadie.

@@ -25,17 +25,17 @@ def pattern(q):
 
 
 async def user_summary(db, user):
-    count = await db.scalar(select(func.count()).select_from(models.DemoPatientMember)
-                             .where(models.DemoPatientMember.user_id == user.id))
+    count = await db.scalar(select(func.count()).select_from(models.AppMembership)
+                             .where(models.AppMembership.user_id == user.id))
     return EndUserOut(user_id=user.id, full_name=user.full_name, email=user.email,
                       is_active=user.is_active, memberships_count=count)
 
 
 async def user_detail(db, user):
-    rows = (await db.execute(select(models.DemoPatientMember, models.DemoPatient)
-                            .join(models.DemoPatient, models.DemoPatient.id == models.DemoPatientMember.patient_id)
-                            .where(models.DemoPatientMember.user_id == user.id)
-                            .order_by(models.DemoPatient.full_name, models.DemoPatient.id))).all()
+    rows = (await db.execute(select(models.AppMembership, models.AppPatient)
+                            .join(models.AppPatient, models.AppPatient.id == models.AppMembership.patient_id)
+                            .where(models.AppMembership.user_id == user.id)
+                            .order_by(models.AppPatient.full_name, models.AppPatient.id))).all()
     return EndUserDetailOut(user_id=user.id, full_name=user.full_name, email=user.email, is_active=user.is_active,
         memberships_count=len(rows), memberships=[MembershipOut(patient_id=p.id, patient_name=p.full_name,
             role=m.role, is_owner=m.is_owner) for m, p in rows],
@@ -47,15 +47,15 @@ async def list_users(request: Request, db: Db, admin: models.AdminUser = require
                      q: str | None = Query(None, max_length=120), is_active: bool | None = None,
                      page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100)):
     require_demo()
-    stmt = select(models.DemoEndUser)
+    stmt = select(models.AppAccount)
     if q and q.strip():
         query = pattern(q.strip())
-        stmt = stmt.where(or_(models.DemoEndUser.full_name.ilike(query, escape='\\'),
-                              models.DemoEndUser.email.ilike(query, escape='\\')))
+        stmt = stmt.where(or_(models.AppAccount.full_name.ilike(query, escape='\\'),
+                              models.AppAccount.email.ilike(query, escape='\\')))
     if is_active is not None:
-        stmt = stmt.where(models.DemoEndUser.is_active == is_active)
+        stmt = stmt.where(models.AppAccount.is_active == is_active)
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    rows = (await db.scalars(stmt.order_by(models.DemoEndUser.full_name, models.DemoEndUser.id)
+    rows = (await db.scalars(stmt.order_by(models.AppAccount.full_name, models.AppAccount.id)
                              .offset((page-1)*page_size).limit(page_size))).all()
     result = EndUserPage(items=[await user_summary(db, row) for row in rows], total=total, page=page, page_size=page_size)
     await audit(db, request, 'end_users.demo_list', 'demo_app_account', actor=admin,
@@ -66,7 +66,7 @@ async def list_users(request: Request, db: Db, admin: models.AdminUser = require
 @router.get('/end-users/{user_id}', response_model=EndUserDetailOut)
 async def get_user(user_id: UUID, request: Request, db: Db, admin: models.AdminUser = require('end_users')):
     require_demo()
-    user = await db.get(models.DemoEndUser, user_id)
+    user = await db.get(models.AppAccount, user_id)
     if user is None:
         raise not_found()
     result = await user_detail(db, user)
@@ -79,21 +79,21 @@ async def list_patients(request: Request, db: Db, admin: models.AdminUser = requ
                         q: str | None = Query(None, max_length=120),
                         page: int = Query(1, ge=1), page_size: int = Query(25, ge=1, le=100)):
     require_demo()
-    stmt = select(models.DemoPatient)
+    stmt = select(models.AppPatient)
     if q and q.strip():
         query = pattern(q.strip())
-        linked_email = exists(select(models.DemoPatientMember.id).join(models.DemoEndUser,
-            models.DemoEndUser.id == models.DemoPatientMember.user_id).where(
-                models.DemoPatientMember.patient_id == models.DemoPatient.id,
-                models.DemoEndUser.email.ilike(query, escape='\\')))
-        stmt = stmt.where(or_(models.DemoPatient.full_name.ilike(query, escape='\\'), linked_email))
+        linked_email = exists(select(models.AppMembership.id).join(models.AppAccount,
+            models.AppAccount.id == models.AppMembership.user_id).where(
+                models.AppMembership.patient_id == models.AppPatient.id,
+                models.AppAccount.email.ilike(query, escape='\\')))
+        stmt = stmt.where(or_(models.AppPatient.full_name.ilike(query, escape='\\'), linked_email))
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    rows = (await db.scalars(stmt.order_by(models.DemoPatient.full_name, models.DemoPatient.id)
+    rows = (await db.scalars(stmt.order_by(models.AppPatient.full_name, models.AppPatient.id)
                              .offset((page-1)*page_size).limit(page_size))).all()
     items = []
     for row in rows:
-        count = await db.scalar(select(func.count()).select_from(models.DemoPatientMember)
-                               .where(models.DemoPatientMember.patient_id == row.id))
+        count = await db.scalar(select(func.count()).select_from(models.AppMembership)
+                               .where(models.AppMembership.patient_id == row.id))
         items.append(PatientOut(patient_id=row.id, full_name=row.full_name, members_count=count))
     await audit(db, request, 'patients.demo_list', 'demo_app_patient', actor=admin,
                 metadata={'page': page, 'page_size': page_size})
@@ -103,13 +103,13 @@ async def list_patients(request: Request, db: Db, admin: models.AdminUser = requ
 @router.get('/patients/{patient_id}', response_model=PatientDetailOut)
 async def get_patient(patient_id: UUID, request: Request, db: Db, admin: models.AdminUser = require('end_users')):
     require_demo()
-    patient = await db.get(models.DemoPatient, patient_id)
+    patient = await db.get(models.AppPatient, patient_id)
     if patient is None:
         raise not_found()
-    rows = (await db.execute(select(models.DemoPatientMember, models.DemoEndUser).join(models.DemoEndUser,
-                            models.DemoEndUser.id == models.DemoPatientMember.user_id)
-                            .where(models.DemoPatientMember.patient_id == patient.id)
-                            .order_by(models.DemoEndUser.full_name, models.DemoEndUser.id))).all()
+    rows = (await db.execute(select(models.AppMembership, models.AppAccount).join(models.AppAccount,
+                            models.AppAccount.id == models.AppMembership.user_id)
+                            .where(models.AppMembership.patient_id == patient.id)
+                            .order_by(models.AppAccount.full_name, models.AppAccount.id))).all()
     result = PatientDetailOut(patient_id=patient.id, full_name=patient.full_name, members_count=len(rows),
         members=[PatientMemberOut(user_id=u.id, full_name=u.full_name, email=u.email, role=m.role,
                                   is_owner=m.is_owner, is_active=u.is_active) for m, u in rows])
@@ -123,7 +123,7 @@ async def deactivate_user(user_id: UUID, body: DeactivateIn, request: Request, d
     require_demo()
     if body.confirmation_user_id != user_id:
         raise invalid('CONFIRMATION_MISMATCH', 'La confirmación no corresponde a la cuenta seleccionada.')
-    user = await db.scalar(select(models.DemoEndUser).where(models.DemoEndUser.id == user_id)
+    user = await db.scalar(select(models.AppAccount).where(models.AppAccount.id == user_id)
                            .with_for_update().execution_options(populate_existing=True))
     if user is None:
         raise not_found()

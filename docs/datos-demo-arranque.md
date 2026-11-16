@@ -31,7 +31,7 @@ Si un módulo tiene **cualquier registro en alguna de sus tablas**, se conserva 
 | Moderación | moderation_queue |
 | Configuración | system_settings |
 | Legales | legal_versions |
-| Usuarios y pacientes de demostración (fase18) | demo_app_accounts, demo_app_patients, demo_app_memberships |
+| Usuarios y pacientes de demostración (fase18) | app_accounts, app_patients, app_memberships |
 
 Los controles técnicos/cuotas de `content_control` se conservan y no impiden cargar contenido si no hay candidatos, trabajos ni artículos. Los ejemplos de contenido entran en **borrador**, sin audio válido ni publicación automática. El seed no envía correos ni consume Gemini; la habilitación de workers es independiente.
 

@@ -1,4 +1,4 @@
-// Modelo físico del backend administrativo AgeCare. Fuente: app/models.py.
+// Modelo físico del backend administrativo AgeCare. Fuentes: app/models.py y app/analytics_models.py.
 // No consulta registros, secretos, una base desplegada ni la app Flutter.
 // Solo Ref declara ForeignKey reales. UUID sin FK conserva su independencia.
 // default representa valores del servidor; los defaults Python se explican en notas.
@@ -97,6 +97,65 @@ Table mfa_enrollments {
   }
 }
 
+Table admin_password_resets {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  admin_id uuid [not null]
+  token_hash varchar(64) [not null]
+  auth_version integer [not null]
+  expires_at timestamptz [not null]
+  used_at timestamptz [null]
+  revoked_at timestamptz [null]
+  payload_encrypted text [null]
+  status varchar(20) [not null, note: 'Valor inicial asignado por Python: queued']
+  attempts integer [not null, note: 'Valor inicial asignado por Python: 0']
+  next_attempt_at timestamptz [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    admin_id [name: 'ix_admin_password_resets_admin_id']
+    token_hash [unique, name: 'ix_admin_password_resets_token_hash']
+  }
+}
+
+Table admin_mfa_recoveries {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  admin_id uuid [not null]
+  token_hash varchar(64) [not null]
+  auth_version integer [not null]
+  email_encrypted text [not null]
+  reason varchar(500) [not null]
+  status varchar(20) [not null, note: 'Valor inicial asignado por Python: awaiting_email']
+  expires_at timestamptz [not null]
+  confirmed_at timestamptz [null]
+  decided_at timestamptz [null]
+  decided_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
+  decided_by_name varchar(120) [null]
+  decision_note varchar(500) [null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    admin_id [name: 'ix_admin_mfa_recoveries_admin_id']
+    token_hash [unique, name: 'ix_admin_mfa_recoveries_token_hash']
+  }
+}
+
+Table mfa_recovery_emails {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  recovery_id uuid [not null]
+  recipient_id uuid [not null]
+  kind varchar(20) [not null]
+  payload_encrypted text [null]
+  status varchar(20) [not null, note: 'Valor inicial asignado por Python: queued']
+  attempts integer [not null, note: 'Valor inicial asignado por Python: 0']
+  next_attempt_at timestamptz [not null]
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    recipient_id [name: 'ix_mfa_recovery_emails_recipient_id']
+    recovery_id [name: 'ix_mfa_recovery_emails_recovery_id']
+  }
+}
+
 Table audit_log {
   id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
   actor_id uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
@@ -121,7 +180,7 @@ Table audit_log {
   }
 }
 
-Table demo_app_accounts {
+Table app_accounts {
   id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
   full_name varchar(120) [not null]
   email varchar(254) [not null]
@@ -136,13 +195,13 @@ Table demo_app_accounts {
   }
 }
 
-Table demo_app_patients {
+Table app_patients {
   id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
   full_name varchar(120) [not null]
   created_at timestamptz [not null, default: `now()`]
 }
 
-Table demo_app_memberships {
+Table app_memberships {
   id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
   patient_id uuid [not null]
   user_id uuid [not null]
@@ -150,10 +209,12 @@ Table demo_app_memberships {
   is_owner boolean [not null, default: false]
 
   indexes {
-    patient_id [name: 'ix_demo_app_memberships_patient_id']
-    (patient_id, user_id) [unique, name: 'uq_demo_patient_user']
-    user_id [name: 'ix_demo_app_memberships_user_id']
+    patient_id [name: 'ix_app_memberships_patient_id']
+    (patient_id, user_id) [unique, name: 'uq_app_patient_user']
+    user_id [name: 'ix_app_memberships_user_id']
   }
+
+  Note: 'Restricciones CHECK: role IN (\'family\', \'caregiver\', \'elder\', \'doctor\')'
 }
 
 Table metrics_daily_users {
@@ -629,19 +690,27 @@ Table analytics_payments {
 }
 
 Table analytics_sources {
-  name varchar(30) [pk, not null]
-  data_origin varchar(12) [pk, not null]
+  name varchar(30) [not null]
+  data_origin varchar(12) [not null]
   available_through timestamptz [not null]
   updated_at timestamptz [not null, default: `now()`]
   revision integer [not null, note: 'Valor inicial asignado por Python: 1']
+
+  indexes {
+    (name, data_origin) [pk]
+  }
 }
 
 Table analytics_cohort_snapshots {
-  month date [pk, not null]
-  data_origin varchar(12) [pk, not null]
+  month date [not null]
+  data_origin varchar(12) [not null]
   payload jsonb [not null]
   source_signature varchar(64) [not null]
   computed_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (month, data_origin) [pk]
+  }
 }
 
 // Relaciones físicas (muchos a uno).
@@ -649,8 +718,12 @@ Ref: admin_sessions.admin_id > admin_users.id
 Ref: admin_invitations.admin_id > admin_users.id [delete: cascade]
 Ref: invitation_emails.invitation_id > admin_invitations.id [delete: cascade]
 Ref: mfa_enrollments.admin_id > admin_users.id [delete: cascade]
-Ref: demo_app_memberships.patient_id > demo_app_patients.id [delete: restrict]
-Ref: demo_app_memberships.user_id > demo_app_accounts.id [delete: restrict]
+Ref: admin_password_resets.admin_id > admin_users.id [delete: cascade]
+Ref: admin_mfa_recoveries.admin_id > admin_users.id [delete: cascade]
+Ref: mfa_recovery_emails.recipient_id > admin_users.id [delete: cascade]
+Ref: mfa_recovery_emails.recovery_id > admin_mfa_recoveries.id [delete: cascade]
+Ref: app_memberships.patient_id > app_patients.id [delete: restrict]
+Ref: app_memberships.user_id > app_accounts.id [delete: restrict]
 Ref: feature_usage_window.feature_key > features.feature_key
 Ref: ops_incident_emails.incident_id > ops_incidents.id [delete: cascade]
 Ref: support_tickets.assigned_to > admin_users.id

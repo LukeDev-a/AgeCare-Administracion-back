@@ -1,5 +1,13 @@
 # Usuarios y pacientes de demostración
 
+## Nombres para la entrega — 16 de noviembre de 2026
+
+Por petición del usuario,0017 renombra las tablas a `app_accounts`, `app_patients` y `app_memberships`. El ORM utiliza AppAccount/AppPatient/AppMembership. No crea otro directorio ni elimina filas: conserva identificadores, vínculos, estados, fechas y motivos. Los párrafos históricos que mencionan demo_app_ describen0012; los nombres actuales son app_. La integración móvil y la revocación real siguen pendientes; se conservan la configuración de habilitación y los indicadores data_origin/deactivation_effect y los eventos de auditoría anteriores.
+
+El seed de instalaciones vacías usa32 nombres de personas y siete pacientes, con correos nombre.apellido@gmail.com. Son identidades ficticias: no acreditan titularidad de esas direcciones ni deben recibir correo.0017 sustituye una cuenta existente solo si coinciden su UUID de ejemplo, nombre numerado original y correo example.test original; si se editó, la conserva. En pacientes exige UUID y nombre numerado originales. Si un correo destino pertenece a otra fila o existen tablas origen/destino simultáneamente, rechaza la migración en lugar de fusionar personas. No se borran datos de otros módulos.
+
+Antes de desplegar el backend en Render debe aplicarse `alembic upgrade head` hasta0017 con el rol propietario de migraciones. El rol limitado de la API conserva los permisos al renombrar las mismas tablas. En local, el arranque habitual de Docker aplica las migraciones; no ejecutar seed destructivo ni borrar volúmenes. El cambio de nombres no habilita producción ni conecta identidades externas por sí solo. Esta implementación no ha aplicado0017 a las bases habituales.
+
 Fase 18, 28 de octubre de 2026. El usuario eligió preparar el módulo con demostración e integrar el servicio móvil más adelante. Esta entrega permite probar la administración; **no administra ni revoca sesiones móviles reales**.
 
 ## Arranque y uso

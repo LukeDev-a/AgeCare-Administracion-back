@@ -1,5 +1,15 @@
 # Mapa del backend
 
+## Neon actualizado a0017 — 16 de noviembre de 2026
+
+Aplicación autorizada y completada con scripts.migrate_neon_0017 --apply: tablas app_accounts/app_patients/app_memberships con32/7/14 filas,32 cuentas y7 pacientes originales renombrados, UUID/estados/fechas/vínculos conservados y0 huérfanos.38 tablas restantes cotejadas sin cambios dentro de la transacción; perfiles privados y ACL conservados.25 pruebas dirigidas aprobadas antes de aplicar, y comprobación posterior de esquema/rol limitado/auditoría de Render correcta. Respaldo cifrado del directorio y reporte en backups/neon-schema-0017-20261116T172641927183Z. No es respaldo completo de toda la base. No seed/correos/commit/push/reinicio ni despliegue; usuario debe subir backend para que Render use nombres nuevos. Las notas anteriores de0017 pendiente son históricas. Detalles en render-neon.md.
+
+## Nombres físicos del directorio — 16 de noviembre de 2026
+
+Por solicitud explícita,0017 renombra demo_app_accounts/patients/memberships a app_accounts/app_patients/app_memberships; modelos AppAccount/AppPatient/AppMembership y consultas actualizadas. No cambia flags demo_available, contratos data_origin/deactivation_effect ni eventos de auditoría, porque sigue sin integración móvil real. Seed usa32 nombres personales/correos Gmail y7 pacientes, sin enviar correo. Migración conserva UUID/relaciones/estados y reemplaza solo identidades originales intactas; personas editadas o ajenas se conservan. Colisión origen/destino o correo ocupado provoca rechazo.0012 histórica intacta; downgrade0017 rechaza reversión automática para proteger datos. DBML y guías actualizados.
+
+26 pruebas dirigidas y464 completas aprobadas en memoria/SQLite; PostgreSQL0017 aún sin ejecutar. No servicios Docker activos ni migración local/Neon aplicada. Render exige0017 antes del próximo despliegue; Compose habitual aplica head. No seed destructivo ni modificación de cuentas administrativas. Detalles en usuarios-pacientes-demo.md.
+
 ## Ejemplos de moderación en local y Neon — 15 de noviembre de 2026
 
 Usuario autorizó ambos, primero local. scripts.seed_moderation_demo añadió60 ejemplos por destino, preservando2 previos. Totales verificados36 pendientes/13 aprobados/13 rechazados; no faltantes. Script aditivo UUID5, sin restablecimiento de decisiones ni seed general, solo entorno dev y rol limitado para Neon. Ninguna otra tabla/cuenta ni credencial modificada. Históricos ficticios sin actor real; fotos/mensajes sin contenido y siguen bloqueados.17 pruebas backend dirigidas aprobadas; guía docs/moderacion-demo.md. No migración ni cambios de rutas de moderación.

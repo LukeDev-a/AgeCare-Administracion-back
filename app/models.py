@@ -164,9 +164,9 @@ class AuditLog(Base):
 
 
 # ============ Directorio de demostración (sin autenticación móvil) ============
-class DemoEndUser(Base):
+class AppAccount(Base):
     """Directorio ficticio, SIN credenciales/sesiones ni identidad móvil canónica."""
-    __tablename__ = 'demo_app_accounts'
+    __tablename__ = 'app_accounts'
     id: Mapped[uuid.UUID] = pk()
     full_name: Mapped[str] = mapped_column(String(120))
     email: Mapped[str] = mapped_column(String(254), unique=True)
@@ -177,20 +177,20 @@ class DemoEndUser(Base):
     created_at: Mapped[datetime] = ts_now()
 
 
-class DemoPatient(Base):
-    __tablename__ = 'demo_app_patients'
+class AppPatient(Base):
+    __tablename__ = 'app_patients'
     id: Mapped[uuid.UUID] = pk()
     full_name: Mapped[str] = mapped_column(String(120))
     created_at: Mapped[datetime] = ts_now()
 
 
-class DemoPatientMember(Base):
-    __tablename__ = 'demo_app_memberships'
-    __table_args__ = (UniqueConstraint('patient_id', 'user_id', name='uq_demo_patient_user'),
-                     CheckConstraint("role IN ('family', 'caregiver', 'elder', 'doctor')", name='ck_demo_member_role'))
+class AppMembership(Base):
+    __tablename__ = 'app_memberships'
+    __table_args__ = (UniqueConstraint('patient_id', 'user_id', name='uq_app_patient_user'),
+                     CheckConstraint("role IN ('family', 'caregiver', 'elder', 'doctor')", name='ck_app_member_role'))
     id: Mapped[uuid.UUID] = pk()
-    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('demo_app_patients.id', ondelete='RESTRICT'), index=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('demo_app_accounts.id', ondelete='RESTRICT'), index=True)
+    patient_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('app_patients.id', ondelete='RESTRICT'), index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('app_accounts.id', ondelete='RESTRICT'), index=True)
     role: Mapped[str] = mapped_column(String(20))
     is_owner: Mapped[bool] = mapped_column(Boolean, default=False, server_default='false')
 

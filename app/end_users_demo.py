@@ -3,6 +3,7 @@ from uuid import NAMESPACE_URL, uuid5
 from sqlalchemy import select, text
 from app import models
 from app.config import get_settings
+from app.end_user_samples import ACCOUNTS, PATIENTS
 
 
 def demo_available() -> bool:
@@ -20,18 +21,18 @@ async def seed_demo_directory(db):
         return False
     if db.bind.dialect.name == 'postgresql':
         await db.execute(text('SELECT pg_advisory_xact_lock(724018, 1)'))
-    for model in (models.DemoEndUser, models.DemoPatient, models.DemoPatientMember):
+    for model in (models.AppAccount, models.AppPatient, models.AppMembership):
         if await db.scalar(select(model.id).limit(1)) is not None:
             return False
-    users = [models.DemoEndUser(id=demo_id(f'user-{i}'), full_name=f'Persona de prueba {i:02}',
-                                email=f'persona{i:02}@example.test', is_active=i != 32) for i in range(1, 33)]
-    patients = [models.DemoPatient(id=demo_id(f'patient-{i}'), full_name=f'Paciente de prueba {i:02}') for i in range(1, 8)]
+    users = [models.AppAccount(id=demo_id(f'user-{i}'), full_name=name,
+                                email=email, is_active=i != 32) for i, (name, email) in enumerate(ACCOUNTS, 1)]
+    patients = [models.AppPatient(id=demo_id(f'patient-{i}'), full_name=name) for i, name in enumerate(PATIENTS, 1)]
     db.add_all(users + patients)
     await db.flush()
     links = [(1, 1, 'family', True), (1, 2, 'caregiver', False), (1, 3, 'doctor', False), (1, 4, 'elder', False),
              (2, 1, 'caregiver', False), (2, 5, 'family', True), (2, 6, 'elder', False),
              (3, 7, 'family', True), (3, 2, 'caregiver', False), (3, 3, 'doctor', False),
              (4, 8, 'family', True), (4, 32, 'caregiver', False), (5, 9, 'family', True), (6, 10, 'family', True)]
-    db.add_all([models.DemoPatientMember(id=demo_id(f'link-{p}-{u}'), patient_id=demo_id(f'patient-{p}'),
+    db.add_all([models.AppMembership(id=demo_id(f'link-{p}-{u}'), patient_id=demo_id(f'patient-{p}'),
                 user_id=demo_id(f'user-{u}'), role=role, is_owner=owner) for p, u, role, owner in links])
     return True

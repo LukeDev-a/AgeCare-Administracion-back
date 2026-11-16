@@ -42,7 +42,7 @@ async def test_search_paging_literal_filters_and_staff_separation(client, direct
     assert first['total'] == second['total'] == 32
     assert len(first['items']) == 25 and len(second['items']) == 7
     assert {r['user_id'] for r in first['items']}.isdisjoint(r['user_id'] for r in second['items'])
-    for query, count in [('PERSONA01@EXAMPLE.TEST', 1), ('Persona de prueba 01', 1), ('%', 0), ('_', 0), ('sin coincidencias', 0)]:
+    for query, count in [('ANA.GONZALEZ@GMAIL.COM', 1), ('Ana González', 1), ('%', 0), ('_', 0), ('sin coincidencias', 0)]:
         response = await client.get(BASE + '/end-users', headers=headers, params={'q': query})
         assert response.status_code == 200 and response.json()['total'] == count
     inactive = (await client.get(BASE + '/end-users?is_active=false', headers=headers)).json()
@@ -58,9 +58,9 @@ async def test_search_paging_literal_filters_and_staff_separation(client, direct
 
 async def test_patient_search_unique_by_linked_email_and_minimal_detail(client, directory):
     factory, headers, _ = directory
-    filtered = (await client.get(BASE + '/patients', headers=headers, params={'q': 'persona01@example.test'})).json()
+    filtered = (await client.get(BASE + '/patients', headers=headers, params={'q': 'ana.gonzalez@gmail.com'})).json()
     assert filtered['total'] == 2 and len(filtered['items']) == 2
-    broad = (await client.get(BASE + '/patients', headers=headers, params={'q': '@example.test'})).json()
+    broad = (await client.get(BASE + '/patients', headers=headers, params={'q': '@gmail.com'})).json()
     assert broad['total'] == 6 and len({r['patient_id'] for r in broad['items']}) == 6
     user = (await client.get(BASE + '/end-users/' + str(demo_id('user-1')), headers=headers)).json()
     assert {m['role'] for m in user['memberships']} == {'family', 'caregiver'}
@@ -75,7 +75,7 @@ async def test_patient_search_unique_by_linked_email_and_minimal_detail(client, 
         logs = (await db.scalars(select(models.AuditLog))).all()
         assert {r.action for r in logs} == {'patients.demo_list', 'end_users.demo_read', 'patients.demo_read'}
         assert len(logs) == 5 and all(r.before is None and r.after is None for r in logs)
-        assert all('persona01@example.test' not in str(r.event_metadata) for r in logs)
+        assert all('ana.gonzalez@gmail.com' not in str(r.event_metadata) for r in logs)
 
 
 async def test_deactivate_demo_preserves_links_internal_sessions_and_audits_atomically(client, directory):
@@ -95,8 +95,8 @@ async def test_deactivate_demo_preserves_links_internal_sessions_and_audits_atom
     async with factory() as db:
         assert (await db.get(models.AdminSession, session_id)).revoked_at is None
         assert (await db.get(models.AdminUser, admin_id)).is_active
-        assert await db.scalar(select(func.count()).select_from(models.DemoPatient)) == 7
-        assert await db.scalar(select(func.count()).select_from(models.DemoPatientMember)) == 14
+        assert await db.scalar(select(func.count()).select_from(models.AppPatient)) == 7
+        assert await db.scalar(select(func.count()).select_from(models.AppMembership)) == 14
         log = await db.scalar(select(models.AuditLog).where(models.AuditLog.action == 'end_users.demo_deactivate'))
         assert log.before['is_active'] is True and log.after['is_active'] is False
         assert log.after['effect'] == 'demo_only' and log.after['reason'] == 'Solicitud de prueba'
@@ -122,7 +122,7 @@ async def test_invalid_deactivation_has_no_effect(client, directory, body):
     response = await client.post(BASE + '/end-users/' + str(identity) + '/deactivate', headers=headers, json=payload)
     assert response.status_code == 422
     async with factory() as db:
-        assert (await db.get(models.DemoEndUser, identity)).is_active
+        assert (await db.get(models.AppAccount, identity)).is_active
         assert await db.scalar(select(func.count()).select_from(models.AuditLog)) == 0
 
 
@@ -155,7 +155,7 @@ async def test_only_admin_and_no_extra_management_routes(client, directory, role
     assert result.status_code == expected
     if expected != 200:
         async with factory() as db:
-            assert (await db.get(models.DemoEndUser, demo_id('user-1'))).is_active
+            assert (await db.get(models.AppAccount, demo_id('user-1'))).is_active
             assert await db.scalar(select(func.count()).select_from(models.AuditLog)) == 0
     if role == 'admin':
         for method, path in [('post', '/end-users'), ('patch', '/end-users/'+str(demo_id('user-1'))),
@@ -175,28 +175,28 @@ async def test_not_available_outside_explicit_dev_demo(client, directory, monkey
         json={'confirmation_user_id': str(demo_id('user-1')), 'reason': 'No modificar fuera de demo'})).status_code == 503
     async with factory() as db:
         assert await seed_demo_directory(db) is False
-        assert (await db.get(models.DemoEndUser, demo_id('user-1'))).is_active
+        assert (await db.get(models.AppAccount, demo_id('user-1'))).is_active
         assert await db.scalar(select(func.count()).select_from(models.AuditLog)) == 0
 
 
 async def test_safe_demo_seed_preserves_changes_and_partial_group(directory):
     factory, _, _ = directory
     async with factory() as db:
-        user = await db.get(models.DemoEndUser, demo_id('user-1'))
+        user = await db.get(models.AppAccount, demo_id('user-1'))
         user.is_active = False; user.deactivation_reason = 'Conservar modificación'
         await db.commit()
         assert await seed_demo_directory(db) is False
         await db.commit()
-        assert (await db.get(models.DemoEndUser, user.id)).deactivation_reason == 'Conservar modificación'
+        assert (await db.get(models.AppAccount, user.id)).deactivation_reason == 'Conservar modificación'
     # Grupo parcialmente poblado: no rellenar datos faltantes.
     engine = create_async_engine('sqlite+aiosqlite://')
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
     async with async_sessionmaker(engine)() as db:
-        db.add(models.DemoPatient(full_name='Ejemplo existente'))
+        db.add(models.AppPatient(full_name='Ejemplo existente'))
         await db.commit()
         assert await seed_demo_directory(db) is False
-        assert await db.scalar(select(func.count()).select_from(models.DemoEndUser)) == 0
+        assert await db.scalar(select(func.count()).select_from(models.AppAccount)) == 0
     await engine.dispose()
 
 
@@ -210,7 +210,7 @@ async def test_audit_failure_rolls_back_demo_deactivation(client, directory, mon
         await client.post(BASE + '/end-users/'+str(identity)+'/deactivate', headers=headers,
                           json={'confirmation_user_id': str(identity), 'reason': 'Prueba de rollback'})
     async with factory() as db:
-        user = await db.get(models.DemoEndUser, identity)
+        user = await db.get(models.AppAccount, identity)
         assert user.is_active and user.deactivated_at is None
         assert await db.scalar(select(func.count()).select_from(models.AuditLog)) == 0
 
@@ -220,17 +220,17 @@ async def test_compose_safe_seed_loads_empty_directory_and_preserves_deactivatio
     factory, _, _ = directory
     monkeypatch.setattr(get_settings(), 'seed_demo_enabled', True)
     async with factory() as db:
-        for model in (models.DemoPatientMember, models.DemoEndUser, models.DemoPatient):
+        for model in (models.AppMembership, models.AppAccount, models.AppPatient):
             await db.execute(delete(model))
         db.add(models.AuditLog(action='staff.create', actor_name='Historia existente'))
         await db.commit()
     await seed(only_empty=True)
     async with factory() as db:
-        assert await db.scalar(select(func.count()).select_from(models.DemoEndUser)) == 32
-        user = await db.get(models.DemoEndUser, demo_id('user-1'))
+        assert await db.scalar(select(func.count()).select_from(models.AppAccount)) == 32
+        user = await db.get(models.AppAccount, demo_id('user-1'))
         user.is_active = False; user.deactivation_reason = 'No reactivar en arranque'
         await db.commit()
     await seed(only_empty=True)
     async with factory() as db:
-        assert not (await db.get(models.DemoEndUser, demo_id('user-1'))).is_active
+        assert not (await db.get(models.AppAccount, demo_id('user-1'))).is_active
         assert await db.scalar(select(func.count()).select_from(models.AuditLog)) == 1

@@ -14,7 +14,7 @@ def quote(value):
 
 def render():
     lines = [
-        '// Modelo físico del backend administrativo AgeCare. Fuente: app/models.py.',
+        '// Modelo físico del backend administrativo AgeCare. Fuentes: app/models.py y app/analytics_models.py.',
         '// No consulta registros, secretos, una base desplegada ni la app Flutter.',
         '// Solo Ref declara ForeignKey reales. UUID sin FK conserva su independencia.',
         '// default representa valores del servidor; los defaults Python se explican en notas.',
@@ -26,12 +26,13 @@ def render():
     dialect = postgresql.dialect()
     for table in Base.metadata.tables.values():
         lines.append(f'Table {table.name} {{')
+        composite_pk = len(table.primary_key.columns) > 1
         for column in table.columns:
             kind = str(column.type.compile(dialect=dialect)).lower()
             kind = kind.replace('timestamp with time zone', 'timestamptz')
             if ' ' in kind:
                 kind = '"' + kind + '"'
-            settings = ['pk'] if column.primary_key else []
+            settings = ['pk'] if column.primary_key and not composite_pk else []
             settings.append('null' if column.nullable else 'not null')
             notes = []
             if column.server_default is not None:
@@ -55,21 +56,26 @@ def render():
                 settings.append('note: ' + quote(' '.join(notes)))
             lines.append(f'  {column.name} {kind} [{", ".join(settings)}]')
         indexes = []
+        if composite_pk:
+            indexes.append((tuple(c.name for c in table.primary_key.columns), 'pk', table.primary_key.name))
         for constraint in table.constraints:
             if isinstance(constraint, sa.UniqueConstraint):
-                indexes.append((tuple(c.name for c in constraint.columns), True, constraint.name))
+                indexes.append((tuple(c.name for c in constraint.columns), 'unique', constraint.name))
         for index in sorted(table.indexes, key=lambda item: item.name or ''):
-            indexes.append((tuple(c.name for c in index.columns), index.unique, index.name))
+            indexes.append((tuple(c.name for c in index.columns), 'unique' if index.unique else '', index.name))
         if indexes:
             lines.extend(['', '  indexes {'])
-            for columns, unique, name in sorted(indexes, key=lambda item: item[0]):
+            for columns, constraint_type, name in sorted(indexes, key=lambda item: item[0]):
                 value = columns[0] if len(columns) == 1 else '(' + ', '.join(columns) + ')'
-                options = ['unique'] if unique else []
+                options = [constraint_type] if constraint_type else []
                 if name:
                     options.append('name: ' + quote(name))
                 suffix = ' [' + ', '.join(options) + ']' if options else ''
                 lines.append('    ' + value + suffix)
             lines.append('  }')
+        checks = sorted(str(c.sqltext) for c in table.constraints if isinstance(c, sa.CheckConstraint))
+        if checks:
+            lines.extend(['', '  Note: ' + quote('Restricciones CHECK: ' + '; '.join(checks))])
         lines.extend(['}', ''])
     lines.append('// Relaciones físicas (muchos a uno).')
     for table in Base.metadata.tables.values():

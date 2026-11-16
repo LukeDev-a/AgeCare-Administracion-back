@@ -29,10 +29,10 @@ async def main():
         async with owner.begin() as connection:
             assert not await connection.scalar(text("SELECT count(*) FROM information_schema.tables WHERE table_schema='public'"))
             await connection.run_sync(database.Base.metadata.create_all)
-            for name in ('demo_app_memberships', 'demo_app_accounts', 'demo_app_patients'):
+            for name in ('app_memberships', 'app_accounts', 'app_patients'):
                 await connection.execute(text('DROP TABLE ' + name))
             def migrate(sync):
-                for filename in ('0011_audit_integrity.py', '0012_demo_end_users.py'):
+                for filename in ('0011_audit_integrity.py', '0012_demo_end_users.py', '0017_app_directory_names.py'):
                     spec = importlib.util.spec_from_file_location('check_' + filename[:4], Path('alembic/versions') / filename)
                     module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
                     module.op = Operations(MigrationContext.configure(sync))
@@ -53,7 +53,7 @@ async def main():
         seeded = await asyncio.gather(seed_once(), seed_once())
         assert sorted(seeded) == [False, True], seeded
         async with factory() as db:
-            for model, count in ((models.DemoEndUser, 32), (models.DemoPatient, 7), (models.DemoPatientMember, 14)):
+            for model, count in ((models.AppAccount, 32), (models.AppPatient, 7), (models.AppMembership, 14)):
                 assert await db.scalar(select(func.count()).select_from(model)) == count
         runtime_url = await provision_runtime(url.render_as_string(hide_password=False))
         runtime = create_async_engine(runtime_url, hide_parameters=True)
@@ -77,8 +77,8 @@ async def main():
             assert (await db.get(models.AdminUser, admin_id)).full_name == 'Personal conservado'
             assert (await db.get(models.AdminSession, session_id)).revoked_at is None
             assert (await db.get(models.AuditLog, audit_id)).actor_name == 'Historia conservada'
-            assert not (await db.get(models.DemoEndUser, identity)).is_active
-            assert await db.scalar(select(func.count()).select_from(models.DemoPatientMember)) == 14
+            assert not (await db.get(models.AppAccount, identity)).is_active
+            assert await db.scalar(select(func.count()).select_from(models.AppMembership)) == 14
             assert await db.scalar(select(func.count()).select_from(models.AuditLog).where(models.AuditLog.action == 'end_users.demo_deactivate')) == 1
         print('PostgreSQL OK: migración idempotente, carga concurrente sin duplicados, desactivación demo concurrente 200/409 con un evento, datos/vínculos/sesiones internas conservados y rol limitado compatible.')
     finally:
