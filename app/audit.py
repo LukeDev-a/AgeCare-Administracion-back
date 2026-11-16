@@ -36,6 +36,7 @@ BUSINESS_ACTIONS = {
     "content.candidate_review": ("Revisó una noticia recopilada", "Contenido"),
     "content.adaptation_request": ("Solicitó adaptar una noticia", "Contenido"),
     "content.collection_request": ("Solicitó recopilar noticias", "Contenido"),
+    "content.news_import": ("Importó noticias desde un archivo", "Contenido"),
     "marketplace.product_create": ("Creó un producto", "Marketplace"),
     "marketplace.product_update": ("Modificó un producto", "Marketplace"),
     "marketplace.caregiver_update": ("Modificó un perfil de cuidador", "Marketplace"),

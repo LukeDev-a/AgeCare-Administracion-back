@@ -14,6 +14,7 @@ from app.config import get_settings
 from app.schemas.operation import ContentItemOut
 from app.routers.content import _saved
 from app.runtime_settings import feature_enabled, require_feature
+from app.news_import import read_posts, import_posts
 
 router = APIRouter(prefix='/content', tags=['Revisión editorial'])
 
@@ -58,6 +59,19 @@ async def runtime(db: Db):
             'gemini_ready': bool(settings.gemini_api_key and settings.gemini_free_tier_confirmed),
             'collection_hour': settings.news_collection_hour, 'timezone': 'America/Santiago',
             'collection_limit': settings.news_collection_limit, 'adaptation_batch': settings.news_adaptation_batch}
+
+
+@router.post('/candidates/import', summary='Importar archivo JSON de noticias',
+             openapi_extra={'requestBody': {'required': True, 'content': {'application/json': {
+                 'schema': {'type': 'array', 'minItems': 1, 'maxItems': 100, 'items': {'type': 'object'}}}}}})
+async def import_candidates(request: Request, db: Db,
+                            admin: models.AdminUser = require('content', write=True)):
+    await require_feature(db, 'news_collection_enabled')
+    posts = await read_posts(request)
+    counts = await import_posts(db, posts)
+    await audit(db, request, 'content.news_import', 'news_candidate', None,
+                after={'source': 'cuentamealgobueno', 'records': len(posts), **counts})
+    return counts
 
 
 @router.post('/collect', status_code=202)

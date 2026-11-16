@@ -1,5 +1,21 @@
 # Mapa del backend
 
+## Ejemplos de moderación en local y Neon — 15 de noviembre de 2026
+
+Usuario autorizó ambos, primero local. scripts.seed_moderation_demo añadió60 ejemplos por destino, preservando2 previos. Totales verificados36 pendientes/13 aprobados/13 rechazados; no faltantes. Script aditivo UUID5, sin restablecimiento de decisiones ni seed general, solo entorno dev y rol limitado para Neon. Ninguna otra tabla/cuenta ni credencial modificada. Históricos ficticios sin actor real; fotos/mensajes sin contenido y siguen bloqueados.17 pruebas backend dirigidas aprobadas; guía docs/moderacion-demo.md. No migración ni cambios de rutas de moderación.
+
+## Consulta de notas internas de cuidadoras — 15 de noviembre de 2026
+
+GET marketplace/caregivers enlaza admin=require(marketplace) y llama _cg_out(include_note=rol en WRITE marketplace): admin/editor reciben internal_note, moderator sigue recibiendo null. PATCH de nota existente conserva require write y auditoría before/after. No nueva tabla/ruta/migración, no edición real de perfiles. Prueba de ida/vuelta de nota, privacidad por rol, rechazo2001, nota vacía y estado/certificaciones preservados;9 pruebas cuidadoras/auditoría aprobadas en memoria. Frontend añade editor de nota separado del motivo de suspensión. Publicar backend antes de frontend.
+
+## Estado de certificaciones de cuidadoras en respuesta — 15 de noviembre de 2026
+
+CaregiverOut y _cg_out exponen certifications_verified existente en modelo para GET/PATCH marketplace/caregivers. No tabla ni migración nueva, ni endpoint para verificar ni cambios de datos. Conserva CERTIFICATION_REQUIRED en aprobación. Prueba SQLite en memoria confirma dos perfiles con1 certificación y distinto booleano, listado correcto y rechazo sin modificar pendiente cuando false. Frontend usa el campo para explicar/deshabilitar aprobación; publicar backend y frontend juntos.
+
+## Importación manual JSON de noticias — 15 de noviembre de 2026
+
+Nuevo POST content/candidates/import para admin/editor, array WordPress acotado2MiB/100 registros, validación completa previa, deduplicación e invalidación de aprobación del borrador ante cambios del original. news_import.py no llama red ni IA; respeta news_collection_enabled, comparte bloqueo sin avanzar cursor y registra content.news_import. No migración ni permisos DB nuevos.36 pruebas dirigidas aprobadas en SQLite/mocks, sin datos reales ni consumo de proveedores. Uso/contrato y límites en contenido-editorial.md; despliegue por usuario pendiente.
+
 ## Edición editorial espera aprobación antes de encolar audio — 15 de noviembre de 2026
 
 Quitada llamada prematura queue_audio en PATCH content: invalidate ya deja pending y sin aprobación; POST approve conserva encolado. Programación y validación de publicación sin cambios, sin migración.12 pruebas de contenido aprobadas en SQLite en memoria/proveedor simulado, ninguna base habitual ni Gemini real utilizado. Ver contenido-editorial.md. Despliegue por usuario pendiente.

@@ -1,5 +1,17 @@
 # Contenido editorial — Fase 10
 
+## Importación manual de noticias — 15 de noviembre de 2026
+
+La fuente responde actualmente con desafío Cloudflare a consultas automáticas probadas, aunque el navegador del usuario abre JSON. Consulta de solo lectura a PostgreSQL local confirmó25 candidatos, último creado11nov y tres recopilaciones15nov fallidas: el aumento observado no acreditaba éxito reciente. No se cambió la protección del medio ni se copian cookies del navegador.
+
+Alternativa autorizada: Preparar noticias → Importar archivo JSON. Abrir en navegador `https://www.cuentamealgobueno.com/wp-json/wp/v2/posts?per_page=20&_embed=author`, guardar la respuesta mediante Ctrl+S como noticias.json e importar. El archivo debe ser JSON real, no HTML del visor o un desafío. El modal explica límites, revisión de procedencia y continuación manual hacia Gemini/borrador. No se solicita IA automáticamente ni se publica.
+
+Nuevo POST `/api/v1/admin/content/candidates/import`: cuerpo JSON raíz array de1–100 posts WordPress, máximo2MiB, validado completamente antes de escribir. Requiere admin/editor y news_collection_enabled; no requiere worker ni clave Gemini para importar. Valida identificador positivo, título/contenido rendered, fechas opcionales y enlaces HTTPS al host exacto www.cuentamealgobueno.com. Extrae texto plano y autor si viene embebido; no accede a URLs del archivo. Errores422 INVALID_NEWS_IMPORT o413 IMPORT_TOO_LARGE con mensajes sin contenido del archivo.
+
+Devuelve candidates/duplicates/changed; changed es subconjunto de duplicates. Deduplica por fuente e ID, URL canónica o hash. Una noticia nueva queda pending/origen uncertain; un original cambiado fuerza nueva revisión de procedencia y descarta la adaptación anterior; no reemplaza el texto editorial ya creado y anula su aprobación si está vinculado. Archivo repetido idéntico no reinicia la revisión. Comparte bloqueo collection con recopilador, pero no avanza cursor automático ni cuotas. No se guardan archivos subidos ni se añaden trabajos IA. Auditoría content.news_import con actor/fecha/fuente/cantidades, sin volcar noticias.
+
+Sin migración ni nuevas variables. Subir backend a Render y frontend a Vercel para uso público. Local requiere reconstruir API con `docker compose up -d --build api`; no seed manual ni borrar volúmenes.36 pruebas backend dirigidas de contenido/importación/configuración/auditoría y151 frontend completas aprobadas; build/lint frontend correctos. Pruebas solo con SQLite en memoria y archivos ficticios; ninguna importación en bases habituales ni llamadas Gemini. Revisión visual e importación del usuario pendientes.
+
 ## Audio al editar — 15 de noviembre de 2026
 
 PATCH de título/cuerpo invalida aprobación y audio, conserva programación y deja audio_status=pending; ya no llama queue_audio antes de aprobar. POST approve solicita el audio de la versión revisada. No cambia esquema ni reescribe trabajos previos; la UI prioriza aprobación incluso ante colas legadas.12 pruebas del módulo en SQLite en memoria con proveedor simulado aprobadas, incluida ausencia de trabajo para la nueva versión antes de aprobar y queued después de aprobar. Sin datos reales ni llamadas Gemini. Requiere despliegue del backend; no migración.

@@ -64,6 +64,7 @@ class CaregiverOut(BaseModel):
     specialties: list[str]
     languages: list[str]
     certifications_count: int
+    certifications_verified: bool
     rating_avg: float | None
     reviews_count: int
     status: CaregiverStatus

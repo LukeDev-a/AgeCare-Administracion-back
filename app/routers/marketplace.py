@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from app import models
 from app.audit import audit
 from app.deps import Db, require
-from app.enums import CaregiverStatus, ContentStatus
+from app.enums import CaregiverStatus, ContentStatus, WRITE
 from app.errors import conflict, invalid, not_found
 from app.schemas.common import Page
 from app.schemas.operation import (CaregiverOut, CaregiverPatchIn, ProductCreateIn, ProductOut,
@@ -21,21 +21,23 @@ router = APIRouter(prefix="/marketplace", tags=["Catálogos marketplace"])
 def _cg_out(c: models.CaregiverProfile, include_note: bool = False) -> CaregiverOut:
     return CaregiverOut(caregiver_id=c.id, name=c.name, zone=c.zone,
                         specialties=c.specialties or [], languages=c.languages or [],
-                        certifications_count=c.certifications_count, rating_avg=c.rating_avg,
+                        certifications_count=c.certifications_count, certifications_verified=c.certifications_verified,
+                        rating_avg=c.rating_avg,
                         reviews_count=c.reviews_count, status=CaregiverStatus(c.status),
                         submitted_at=c.submitted_at, reviewed_by_name=c.reviewed_by_name,
                         internal_note=c.internal_note if include_note else None)
 
 
 # ---------- 10.1 Listar cuidadoras ----------
-@router.get("/caregivers", response_model=Page[CaregiverOut], dependencies=[require("marketplace")])
+@router.get("/caregivers", response_model=Page[CaregiverOut])
 async def list_caregivers(db: Db,
                           status_f: CaregiverStatus | None = Query(default=None, alias="status"),
                           zone: str | None = None,
                           specialty: str | None = None,
                           q: str | None = Query(default=None, max_length=120),
                           page: int = Query(default=1, ge=1),
-                          page_size: int = Query(default=25, ge=1, le=100)):
+                          page_size: int = Query(default=25, ge=1, le=100),
+                          admin: models.AdminUser = require("marketplace")):
     stmt = select(models.CaregiverProfile)
     if status_f:
         stmt = stmt.where(models.CaregiverProfile.status == status_f)
@@ -50,7 +52,8 @@ async def list_caregivers(db: Db,
                              .offset((page - 1) * page_size).limit(page_size))).scalars().all()
     if specialty:  # las especialidades viven en JSON; filtro en memoria sobre la página
         rows = [r for r in rows if specialty.lower() in [s.lower() for s in (r.specialties or [])]]
-    return Page(items=[_cg_out(c) for c in rows], page=page, page_size=page_size, total=total)
+    return Page(items=[_cg_out(c, include_note=admin.role in WRITE['marketplace']) for c in rows],
+                page=page, page_size=page_size, total=total)
 
 
 # ---------- 10.2 Aprobar / suspender / anotar ----------

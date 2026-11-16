@@ -74,7 +74,7 @@ async def test_disabled_features_block_direct_api_and_reenable(client, admin_hea
     assert (await change(client, admin_headers, 'feature_flags', value)).status_code == 200
     runtime = (await client.get(f'{BASE}/content/runtime', headers=admin_headers)).json()
     assert runtime['collection_enabled'] is False and runtime['adaptation_enabled'] is False
-    for path in ('/content/collect', '/content/candidates/00000000-0000-0000-0000-000000000001/adapt'):
+    for path in ('/content/collect', '/content/candidates/import', '/content/candidates/00000000-0000-0000-0000-000000000001/adapt'):
         result = await client.post(BASE + path, headers=admin_headers)
         assert result.status_code == 409 and result.json()['error']['code'] == 'FEATURE_DISABLED'
     async with database.get_session_factory()() as db:
