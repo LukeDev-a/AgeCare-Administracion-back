@@ -1,5 +1,13 @@
 # Mapa del backend
 
+## Diagnóstico seguro del proveedor preparado — 16 de noviembre de 2026
+
+Tras repetirse el fallo de audio sin detalle en Render, content_providers registra warnings AGECARE_EDITORIAL: timeout/conexión/JSON inválido/status HTTP/límite de respuesta; audio distingue ausencia de parte, metadatos o bytes inválidos. Registra solo etapa, duración, longitud del texto, número de candidatos/tokens y finishReason/blockReason de listas permitidas. Nunca URL, clave, texto, audio, respuesta completa ni mensaje/traceback de excepción. Mantiene errores públicos, modelo,timeout60s,cuotas,reintentos y validación originales.36 pruebas dirigidas aprobadas con proveedores simulados, incluidas privacidad y metadatos no confiables. No llamadas reales ni modificación de datos. Pendiente push backend del usuario, despliegue Render y un reintento para capturar la causa; no afirmar que el audio está corregido ni que requiere plan de pago.
+
+## Diagnóstico de audio publicado — 16 de noviembre de 2026
+
+Ante aviso repetido, scripts.check_neon_audio consultó Neon con rol limitado, TLS y transacción READ ONLY, sin textos/identidades/secretos ni llamadas a Gemini. Últimos trabajos TTS observados en cola con INVALID_AUDIO_OUTPUT (1 intento) y PROVIDER_UNAVAILABLE (2 intentos); contenido aprobado de3999 caracteres. Trabajos anteriores de144 caracteres finalizaron correctamente. Esto confirma worker activo y fallos recientes; longitud como causa sigue siendo hipótesis, no diagnóstico confirmado. Interfaz muestra error anterior mientras espera reintento por diseño actual. No noticia/cola/configuración modificada ni solución implementada; respuesta concreta del proveedor no persistida, falta diagnóstico acotado de su formato/causa.
+
 ## Neon actualizado a0017 — 16 de noviembre de 2026
 
 Aplicación autorizada y completada con scripts.migrate_neon_0017 --apply: tablas app_accounts/app_patients/app_memberships con32/7/14 filas,32 cuentas y7 pacientes originales renombrados, UUID/estados/fechas/vínculos conservados y0 huérfanos.38 tablas restantes cotejadas sin cambios dentro de la transacción; perfiles privados y ACL conservados.25 pruebas dirigidas aprobadas antes de aplicar, y comprobación posterior de esquema/rol limitado/auditoría de Render correcta. Respaldo cifrado del directorio y reporte en backups/neon-schema-0017-20261116T172641927183Z. No es respaldo completo de toda la base. No seed/correos/commit/push/reinicio ni despliegue; usuario debe subir backend para que Render use nombres nuevos. Las notas anteriores de0017 pendiente son históricas. Detalles en render-neon.md.

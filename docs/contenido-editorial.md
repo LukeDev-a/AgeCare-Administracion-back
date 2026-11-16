@@ -1,5 +1,11 @@
 # Contenido editorial — Fase 10
 
+## Diagnóstico de fallos de audio — 16 de noviembre de 2026
+
+Los fallos del proveedor generan una línea WARNING con prefijo AGECARE_EDITORIAL. Tras subir el backend y esperar el despliegue, reintentar una vez desde la consola y buscar ese prefijo en los logs de Render. reason distingue timeout, connection_error, invalid_json, http_error, response_too_large, missing_audio_part, invalid_audio_metadata o invalid_audio_bytes. HTTP incluye solo código; la respuesta TTS incluye finish_reason/block_reason de listas permitidas, duración, longitud y contadores. No se registran claves, URLs, texto, audio ni respuestas completas. Se conservan errores públicos y reintentos; la cola puede mostrar el error previo mientras espera otro intento.
+
+36 pruebas dirigidas aprobadas sin llamadas reales. El fallo observado en producción aún necesita reproducirse con este diagnóstico desplegado: no se ha confirmado relación con longitud, cuotas ni nivel gratuito. Sin migración, cambios de modelo o nueva configuración.
+
 ## Importación manual de noticias — 15 de noviembre de 2026
 
 La fuente responde actualmente con desafío Cloudflare a consultas automáticas probadas, aunque el navegador del usuario abre JSON. Consulta de solo lectura a PostgreSQL local confirmó25 candidatos, último creado11nov y tres recopilaciones15nov fallidas: el aumento observado no acreditaba éxito reciente. No se cambió la protección del medio ni se copian cookies del navegador.

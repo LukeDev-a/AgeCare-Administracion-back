@@ -61,3 +61,59 @@ async def test_unconfigured_gemini_does_not_call_network(monkeypatch):
     monkeypatch.setattr(providers, 'request_json', forbidden)
     with pytest.raises(providers.ProviderError, match='GEMINI_NOT_CONFIGURED'):
         await providers.gemini({}, 'gemini-3.5-flash-lite')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('finish', ['MAX_TOKENS', 'SAFETY', 'private-response-marker', []])
+async def test_missing_audio_diagnostic_exposes_only_allowed_metadata(monkeypatch, caplog, finish):
+    async def response(*args):
+        return {'candidates': [{'finishReason': finish, 'content': {
+            'parts': [{'text': 'private-provider-response'}]}}],
+            'promptFeedback': {'blockReason': 'private-block-message'},
+            'usageMetadata': {'candidatesTokenCount': 123}}
+    monkeypatch.setattr(providers, 'gemini', response)
+    with pytest.raises(providers.ProviderError, match='INVALID_AUDIO_OUTPUT'):
+        await providers.narrate('private-editorial-text')
+    record = next(r for r in caplog.records if r.message.startswith('AGECARE_EDITORIAL '))
+    data = json.loads(record.message.removeprefix('AGECARE_EDITORIAL '))
+    assert data['reason'] == 'missing_audio_part'
+    assert data['finish_reason'] == (finish if isinstance(finish, str) and finish in {'MAX_TOKENS', 'SAFETY'} else 'unknown')
+    assert data['output_tokens'] == 123 and data['text_characters'] == 22
+    assert 'private-' not in caplog.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mime,encoded,reason', [
+    ('private-mime', 'AAAA', 'invalid_audio_metadata'),
+    ('audio/l16', 'private-audio-bytes', 'invalid_audio_bytes'),
+])
+async def test_audio_validation_logs_stage_without_payload(monkeypatch, caplog, mime, encoded, reason):
+    async def response(*args):
+        return {'candidates': [{'content': {'parts': [{'inlineData': {
+            'mimeType': mime, 'data': encoded}}]}}]}
+    monkeypatch.setattr(providers, 'gemini', response)
+    with pytest.raises(providers.ProviderError, match='INVALID_AUDIO_OUTPUT'):
+        await providers.narrate('private-body')
+    assert f'"reason": "{reason}"' in caplog.text
+    assert 'private-' not in caplog.text
+
+
+@pytest.mark.parametrize('failure,reason,code', [
+    (TimeoutError('private-timeout'), 'timeout', 'PROVIDER_UNAVAILABLE'),
+    (providers.URLError(TimeoutError('private-timeout')), 'timeout', 'PROVIDER_UNAVAILABLE'),
+    (providers.URLError('private-url'), 'connection_error', 'PROVIDER_UNAVAILABLE'),
+    (ValueError('private-invalid-json'), 'invalid_json', 'PROVIDER_UNAVAILABLE'),
+    (providers.HTTPError('https://private-url', 429, 'private-message', {}, None), 'http_error', 'QUOTA_REACHED'),
+    (providers.HTTPError('https://private-url', 503, 'private-message', {}, None), 'http_error', 'PROVIDER_UNAVAILABLE'),
+])
+def test_transport_diagnostics_never_log_secrets(monkeypatch, caplog, failure, reason, code):
+    class Opener:
+        def open(self, *args, **kwargs):
+            raise failure
+    monkeypatch.setattr(providers, 'build_opener', lambda *args: Opener())
+    with pytest.raises(providers.ProviderError, match=code):
+        providers.request_json('https://private-url', {'generationConfig': {'responseModalities': ['AUDIO']},
+            'contents': 'private-body'}, key='private-key')
+    assert f'"reason": "{reason}"' in caplog.text
+    assert '"operation": "tts"' in caplog.text
+    assert 'private-' not in caplog.text
