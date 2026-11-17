@@ -1,5 +1,13 @@
 # Datos de demostración comercial
 
+## Procesamiento periódico autorizado — 17 de noviembre de 2026
+
+`app/demo_analytics.py` procesa la demostración existente al iniciar la API y comprueba cada60s si cambió la hora. Requiere entorno dev y `ADMIN_COMMERCIAL_DEMO_REFRESH_ENABLED=true`; fuera de Docker el valor predeterminado es false. No despierta Render ni hace llamadas externas. Un marcador persistente y un bloqueo transaccional evitan duplicar trabajo entre reinicios o procesos. Tras una suspensión prepara el corte actual a partir del conjunto determinista existente, hasta31dic2026; fuera del rango no simula frescura.
+
+Reutiliza `load_demo(observed_only=True)` para añadir solo observaciones disponibles hasta el momento. Conserva los registros futuros ya precargados, pero no los presenta como observados. Comprueba cifras diarias existentes y origen demo, conserva precios e ingresos de planes anteriores, usa precios configurados para cortes nuevos y recalcula cohortes. Solo después actualiza las fechas de cálculo/fuentes. Cualquier error revierte la transacción; fuentes ajenas a demo o cifras alteradas impiden el procesamiento automático. No ejecuta el seed destructivo ni cambia datos móviles reales.
+
+Validación local:540 pruebas backend aprobadas. Docker API reconstruida sin eliminar volúmenes, con respaldo previo de ocho tablas analíticas en `backups/demo-refresh-local-20261117T151506Z/before.sql` (ignorado por Git). Se conservaron los551 registros diarios y sus cifras, así como precios/ingresos históricos; el último corte de planes avanzó del10 al17nov. Resumen, altas/bajas, planes y embudo devolvieron fresh y descargas downloads_stale=false. Sin ejecución en Neon. El despliegue remoto necesita el push del usuario, la migración0018 anterior y habilitar la variable en Render dev. No hay migración nueva para este procesador.
+
 ## Carga en Neon completada — 10 de noviembre de 2026
 
 Usuario autorizó llevar a la consola pública la demostración preparada en local. Se cotejaron los 426 días históricos de Neon con las cifras locales, idénticas, y se respaldaron siete tablas analíticas antes de escribir en `backups/commercial-demo-20261110T213637Z`, excluido de Git/Docker, con huella SHA-256. Datos y secretos del respaldo no se publican.

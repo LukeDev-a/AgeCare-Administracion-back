@@ -7,6 +7,9 @@ from app.invitation_mail import mail_worker
 
 @asynccontextmanager
 async def lifespan(app):
+    from app.content_providers import diagnostic
+    diagnostic('worker', 'diagnostics_ready', revision=2,
+               enabled=get_settings().content_worker_enabled)
     from app.runtime_settings import refresh_worker
     settings_worker = asyncio.create_task(refresh_worker())
     worker = asyncio.create_task(mail_worker()) if get_settings().mail_worker_enabled else None
@@ -20,9 +23,15 @@ async def lifespan(app):
     editorial_worker = asyncio.create_task(content_worker()) if get_settings().content_worker_enabled else None
     from app.commercial_analytics import commercial_worker
     metrics_worker = asyncio.create_task(commercial_worker()) if get_settings().commercial_worker_enabled else None
+    from app.demo_analytics import demo_analytics_worker
+    demo_worker = asyncio.create_task(demo_analytics_worker()) if get_settings().commercial_demo_refresh_enabled and get_settings().environment == 'dev' else None
     try:
         yield
     finally:
+        if demo_worker:
+            demo_worker.cancel()
+            with suppress(asyncio.CancelledError):
+                await demo_worker
         settings_worker.cancel()
         with suppress(asyncio.CancelledError):
             await settings_worker
@@ -107,6 +116,8 @@ api.include_router(games_apps.router)
 api.include_router(system_router.router)
 api.include_router(auditing.router)
 api.include_router(end_users.router)
+from app.routers import payments
+api.include_router(payments.router)
 app.include_router(api)
 
 

@@ -61,14 +61,15 @@ async def test_patient_search_unique_by_linked_email_and_minimal_detail(client, 
     filtered = (await client.get(BASE + '/patients', headers=headers, params={'q': 'ana.gonzalez@gmail.com'})).json()
     assert filtered['total'] == 2 and len(filtered['items']) == 2
     broad = (await client.get(BASE + '/patients', headers=headers, params={'q': '@gmail.com'})).json()
-    assert broad['total'] == 6 and len({r['patient_id'] for r in broad['items']}) == 6
+    assert broad['total'] == 8 and len({r['patient_id'] for r in broad['items']}) == 8
     user = (await client.get(BASE + '/end-users/' + str(demo_id('user-1')), headers=headers)).json()
     assert {m['role'] for m in user['memberships']} == {'family', 'caregiver'}
     assert 'role' not in user  # El perfil pertenece a cada vínculo.
     patient = (await client.get(BASE + '/patients/' + str(demo_id('patient-1')), headers=headers)).json()
     assert len(patient['members']) == 4 and {m['role'] for m in patient['members']} == {'family', 'caregiver', 'elder', 'doctor'}
-    empty = (await client.get(BASE + '/patients/' + str(demo_id('patient-7')), headers=headers)).json()
-    assert empty['members'] == [] and empty['members_count'] == 0
+    no_account = (await client.get(BASE + '/patients/' + str(demo_id('patient-8')), headers=headers)).json()
+    assert no_account['full_name'] == 'Elvira Paredes'
+    assert no_account['members_count'] == 1 and no_account['members'][0]['role'] == 'family'
     for sensitive in ('password', 'token', 'conditions', 'birth_date', 'prescriptions', 'notes'):
         assert sensitive not in str(user) and sensitive not in str(patient)
     async with factory() as db:
@@ -76,6 +77,18 @@ async def test_patient_search_unique_by_linked_email_and_minimal_detail(client, 
         assert {r.action for r in logs} == {'patients.demo_list', 'end_users.demo_read', 'patients.demo_read'}
         assert len(logs) == 5 and all(r.before is None and r.after is None for r in logs)
         assert all('ana.gonzalez@gmail.com' not in str(r.event_metadata) for r in logs)
+
+
+async def test_self_accounts_have_elder_role_and_no_account_patient_has_distinct_family(client, directory):
+    _, headers, _ = directory
+    for p, u in [(1, 4), (2, 6), (3, 7), (4, 21), (5, 20), (6, 25), (7, 26)]:
+        patient = (await client.get(BASE+'/patients/'+str(demo_id(f'patient-{p}')), headers=headers)).json()
+        own = next(m for m in patient['members'] if m['user_id'] == str(demo_id(f'user-{u}')))
+        assert own['full_name'] == patient['full_name'] and own['role'] == 'elder'
+        assert all(m['full_name'] != patient['full_name'] for m in patient['members'] if m['role'] != 'elder')
+    no_account = (await client.get(BASE+'/patients/'+str(demo_id('patient-8')), headers=headers)).json()
+    assert no_account['full_name'] == 'Elvira Paredes'
+    assert [(m['full_name'], m['role']) for m in no_account['members']] == [('Elena Morales', 'family')]
 
 
 async def test_deactivate_demo_preserves_links_internal_sessions_and_audits_atomically(client, directory):
@@ -95,8 +108,8 @@ async def test_deactivate_demo_preserves_links_internal_sessions_and_audits_atom
     async with factory() as db:
         assert (await db.get(models.AdminSession, session_id)).revoked_at is None
         assert (await db.get(models.AdminUser, admin_id)).is_active
-        assert await db.scalar(select(func.count()).select_from(models.AppPatient)) == 7
-        assert await db.scalar(select(func.count()).select_from(models.AppMembership)) == 14
+        assert await db.scalar(select(func.count()).select_from(models.AppPatient)) == 8
+        assert await db.scalar(select(func.count()).select_from(models.AppMembership)) == 19
         log = await db.scalar(select(models.AuditLog).where(models.AuditLog.action == 'end_users.demo_deactivate'))
         assert log.before['is_active'] is True and log.after['is_active'] is False
         assert log.after['effect'] == 'demo_only' and log.after['reason'] == 'Solicitud de prueba'

@@ -41,4 +41,5 @@ PATIENTS = (
     "Manuel Espinoza",
     "Teresa Aguilera",
     "Sergio Vidal",
+    "Elvira Paredes",
 )

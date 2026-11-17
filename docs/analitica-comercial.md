@@ -1,5 +1,17 @@
 # Analítica comercial — fase 04
 
+## Ampliación autorizada: procesar la demostración — 17 de noviembre de 2026
+
+Después del autorefresco de consultas, el usuario autorizó avanzar el conjunto demo al estar activa la API. Nuevo procesador optativo `app/demo_analytics.py`, dev y `ADMIN_COMMERCIAL_DEMO_REFRESH_ENABLED=true`, revisa al arrancar/cada60s y procesa una vez por hora con marcador persistente. Añade observaciones disponibles/corte actual y recalcula cohortes sin modificar cifras ni precios históricos, hasta31dic2026. No despierta Render ni integra fuentes reales. Esto amplía la entrega previa descrita debajo, que solo reconsultaba datos.
+
+Activado únicamente en Docker local;540 pruebas backend aprobadas y comprobación de routers con frescura fresh en resumen, altas/bajas, planes y embudo. Descargas dejó de estar desactualizada.551 registros diarios conservaron cifras; último corte de planes17nov. Ver `datos-demo-comerciales.md` para guardas y respaldo. No migra esquema; Neon0018 del módulo anterior y despliegue/habilitación remotos siguen pendientes. Otros módulos analíticos no reciben generación sintética con este cambio.
+
+## Refresco de consola y límite de fuentes — 17 de noviembre de 2026
+
+El usuario confirma ejecución solo con Render activo, sin despertar el servicio mediante tareas externas. El worker de cohortes existente ya inicia con la API, revisa cada60s y recalcula al cambiar día de negocio o firma de fuentes; permanece habilitado en Docker local. Al consultar también recalcula si corresponde. No se añadió un nuevo worker ni mecanismo de ingesta.35 pruebas existentes de cohorte/caché/frescura/fechas aprobadas.
+
+La consola ahora reconsulta los cuatro módulos analíticos cada60s mientras son visibles/online y al recuperar foco/conexión, sin solapamientos ni pérdida de gráficos/filtros ante un fallo. Fuera de foco documental se pausa; al retornar recupera datos disponibles. Los GET conservan las reglas actuales: resumen/series/planes leen agregados existentes, tickets calculan desde sus registros y perfiles/funciones/operativo esperan snapshots/mediciones. No se adelantaron marcas de fuente ni se generaron datos diarios. Si no hay información nueva, las cifras y advertencias de antigüedad pueden seguir iguales.194 pruebas frontend y build/lint aprobados; sin escrituras de datos, migración ni cambios del backend por esta entrega. Ver contexto del frontend para detalles.
+
 Implementación del 26 de octubre de 2026, pendiente de aceptación visual. La unidad facturable de planes sigue sin definir y la integración de fuentes reales se realizará después. No confundir perfiles móviles con roles de la consola.
 
 ## Consulta y permisos

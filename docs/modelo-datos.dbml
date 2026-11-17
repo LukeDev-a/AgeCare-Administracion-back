@@ -459,6 +459,7 @@ Table content_items {
   reviewed_by_name varchar(120) [null]
   reviewed_at timestamptz [null]
   publish_at timestamptz [null]
+  schedule_audio_exception jsonb [null]
   published_at timestamptz [null]
   deleted_at timestamptz [null]
   created_by uuid [null, note: 'Identificador sin clave foránea declarada en este modelo.']
@@ -585,6 +586,46 @@ Table moderation_queue {
     status [name: 'ix_moderation_queue_status']
     type [name: 'ix_moderation_queue_type']
   }
+}
+
+Table payment_subscriptions {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  code varchar(24) [not null]
+  user_id uuid [not null]
+  plan varchar(24) [not null]
+  price integer [not null]
+  state varchar(16) [not null]
+  started_at timestamptz [not null]
+  ends_at timestamptz [not null]
+  version integer [not null, note: 'Valor inicial asignado por Python: 1']
+  history jsonb [not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  data_origin varchar(12) [not null, note: 'Valor inicial asignado por Python: demo']
+
+  indexes {
+    code [unique]
+    user_id [unique]
+  }
+
+  Note: 'Restricciones CHECK: price >= 0 AND version >= 1; state IN (\'active\',\'past_due\',\'cancelled\')'
+}
+
+Table payment_charges {
+  id uuid [pk, not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  code varchar(24) [not null]
+  subscription_id uuid [not null]
+  amount integer [not null]
+  state varchar(16) [not null]
+  charged_at timestamptz [not null]
+  version integer [not null, note: 'Valor inicial asignado por Python: 1']
+  history jsonb [not null, note: 'Valor inicial generado por Python al insertar; no es un DEFAULT SQL.']
+  data_origin varchar(12) [not null, note: 'Valor inicial asignado por Python: demo']
+
+  indexes {
+    code [unique]
+    subscription_id [name: 'ix_payment_charges_subscription_id']
+  }
+
+  Note: 'Restricciones CHECK: amount > 0 AND version >= 1; state IN (\'approved\',\'pending\',\'failed\',\'refunded\')'
 }
 
 Table system_settings {
@@ -728,5 +769,7 @@ Ref: feature_usage_window.feature_key > features.feature_key
 Ref: ops_incident_emails.incident_id > ops_incidents.id [delete: cascade]
 Ref: support_tickets.assigned_to > admin_users.id
 Ref: support_ticket_replies.ticket_id > support_tickets.id
+Ref: payment_subscriptions.user_id > app_accounts.id
+Ref: payment_charges.subscription_id > payment_subscriptions.id
 Ref: analytics_activity.account_id > analytics_accounts.id
 Ref: analytics_payments.account_id > analytics_accounts.id

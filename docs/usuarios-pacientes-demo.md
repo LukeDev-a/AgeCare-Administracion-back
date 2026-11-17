@@ -1,5 +1,26 @@
 # Usuarios y pacientes de demostración
 
+## Coherencia para presentación — 17nov2026, migración0020
+
+Usuario pide resolver la confusión de Carmen Soto y revisar todos los ejemplos. El conjunto actual conserva32 cuentas, añade una ficha hasta8 adultos mayores y tiene19 vínculos. Se mantienen todas las cuentas, UUID de fichas anteriores y vínculos previos. Las cantidades7/14 citadas más abajo son históricas.
+
+| Adulto mayor | Cuenta propia y rol | Otras personas del círculo |
+|---|---|---|
+| Pedro Silva | Pedro Silva · Adulto mayor | Ana González · Familiar; Carlos Muñoz · Cuidador; María Torres · Médico |
+| José Ramírez | José Ramírez · Adulto mayor | Ana González · Cuidador; Lucía Herrera · Familiar |
+| Carmen Soto | Carmen Soto · Adulto mayor | Carlos Muñoz · Cuidador; María Torres · Médico |
+| Rosa Valdés | Rosa Valdés · Adulto mayor | Miguel Rojas · Familiar; Eduardo Sanhueza · Cuidador (cuenta inicialmente inactiva) |
+| Manuel Espinoza | Manuel Espinoza · Adulto mayor | Isabel Castro · Familiar |
+| Teresa Aguilera | Teresa Aguilera · Adulto mayor | Andrés Fuentes · Familiar |
+| Sergio Vidal | Sergio Vidal · Adulto mayor | Sin otras personas vinculadas |
+| Elvira Paredes | Sin cuenta propia | Elena Morales · Familiar |
+
+Una cuenta propia y una ficha pueden compartir nombre porque representan a la misma persona; el vínculo self tiene rol elder. No vincular personas por coincidencia textual de nombres en futuras fuentes reales: estos ejemplos usan UUID explícitos. Rol por vínculo y responsable del círculo son conceptos separados; una misma persona puede tener roles distintos en otros círculos.
+
+0020 solo corrige Carmen cuando coinciden UUID, nombre/correo original y vínculo family/is_owner original. Añade cuatro vínculos propios faltantes y la ficha de Elvira con familiar Elena, únicamente sobre identidades originales conocidas. Conserva nombres/correos editados, roles cambiados, pares ya existentes y colisiones de UUID/nombre; es idempotente. No modificar0017 ni reconstruir el seed sobre bases pobladas. El seed para instalaciones vacías coincide con el resultado nuevo. Downgrade no borra los vínculos ni restaura el rol incorrecto. No cambia esquema ni cuentas/pagos/permisos/sesiones; sin integración móvil real ni envíos.
+
+Validación:34 pruebas dirigidas de API/directorio/migraciones/pagos aprobadas. Docker local0020,32cuentas/8fichas/19vínculos,7 self elder y Elvira→Elena family; health200. Huellas de todas las cuentas y de todas las suscripciones/cobros idénticas antes/después. Respaldo seleccionado (no base completa) en backups/directory-coherence-local-20261117/before.sql, ignorado por Git/Docker, SHA256E31B70656467AB94EFB0113475E8C6A941EB8BF6E207F418CC0AA0B078531B0E. Sin Neon/push/despliegue. Para publicado queda pendiente migrar hasta0020 y desplegar backend; no requiere frontend nuevo por este ajuste.
+
 ## Nombres para la entrega — 16 de noviembre de 2026
 
 Por petición del usuario,0017 renombra las tablas a `app_accounts`, `app_patients` y `app_memberships`. El ORM utiliza AppAccount/AppPatient/AppMembership. No crea otro directorio ni elimina filas: conserva identificadores, vínculos, estados, fechas y motivos. Los párrafos históricos que mencionan demo_app_ describen0012; los nombres actuales son app_. La integración móvil y la revocación real siguen pendientes; se conservan la configuración de habilitación y los indicadores data_origin/deactivation_effect y los eventos de auditoría anteriores.

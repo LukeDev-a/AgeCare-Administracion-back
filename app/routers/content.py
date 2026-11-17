@@ -13,15 +13,16 @@ from app.deps import Db, require
 from app.enums import ContentStatus, ContentType, AdminRole
 from app.errors import conflict, forbidden, invalid, not_found
 from app.config import get_settings
-from app.content_editorial import current_audio, editorial_ready, invalidate, queue_audio, publish, check_publish
+from app.content_editorial import current_audio, editorial_ready, invalidate, queue_audio, publish, check_publish, scheduled_audio_authorization
 from app.schemas.common import Page
-from app.schemas.operation import ContentCreateIn, ContentItemOut, ContentPatchIn
+from app.schemas.operation import ContentCreateIn, ContentItemOut, ContentPatchIn, ContentPublishWithoutAudioIn, ContentScheduleWithoutAudioIn
 from app.security import as_utc, now_utc
 
 router = APIRouter(prefix="/content", tags=["Curación de contenido"])
 
 
 def _out(i: models.ContentItem) -> ContentItemOut:
+    authorization = scheduled_audio_authorization(i)
     return ContentItemOut(id=i.id, type=ContentType(i.type), title=i.title, body=i.body,
                           audio_available=current_audio(i), audio_status=i.audio_status, audio_error=i.audio_error,
                           audio_url=f'/api/v1/admin/content/items/{i.id}/audio' if current_audio(i) else None,
@@ -29,6 +30,8 @@ def _out(i: models.ContentItem) -> ContentItemOut:
                           reviewed_by_name=i.reviewed_by_name, reviewed_at=i.reviewed_at,
                           source_candidate_id=i.source_candidate_id, provenance=i.provenance, tags=i.tags or [],
                           status=ContentStatus(i.status), publish_at=as_utc(i.publish_at) if i.publish_at else None,
+                          scheduled_without_audio=bool(authorization),
+                          scheduled_audio_exception_reason=authorization['reason'] if authorization else None,
                           published_at=as_utc(i.published_at) if i.published_at else None, created_by_name=i.created_by_name,
                           updated_at=as_utc(i.updated_at))
 
@@ -96,6 +99,7 @@ async def patch_item(item_id: UUID, body: ContentPatchIn, request: Request, db: 
                      admin: models.AdminUser = require("content", write=True)):
     item = await _get(db, item_id)
     before = {"title": item.title, "text_version": item.text_version, "tags": item.tags,
+              'scheduled_without_audio': bool(scheduled_audio_authorization(item)),
               "publish_at": as_utc(item.publish_at).isoformat() if item.publish_at else None}
     if body.publish_at is not None and item.status != 'draft':
         raise conflict('SCHEDULE_REQUIRES_DRAFT', 'La programación automática se aplica a borradores.')
@@ -116,10 +120,12 @@ async def patch_item(item_id: UUID, body: ContentPatchIn, request: Request, db: 
         item.tags = body.tags
     if "publish_at" in body.model_fields_set:
         item.publish_at = as_utc(body.publish_at) if body.publish_at else None
+        item.schedule_audio_exception = None
     await db.flush()
     await db.refresh(item)
     await audit(db, request, "content.update", "content_item", item.id, before=before,
                 after={"title": item.title, "text_version": item.text_version, "tags": item.tags,
+                       'scheduled_without_audio': bool(scheduled_audio_authorization(item)),
                        "publish_at": item.publish_at.isoformat() if item.publish_at else None})
     return await _saved(db, item)
 
@@ -136,6 +142,45 @@ async def publish_item(item_id: UUID, request: Request, db: Db,
 
 
 # ---------- 9.5 Retirar ----------
+@router.post('/items/{item_id}/publish-without-audio', response_model=ContentItemOut)
+async def publish_without_audio(item_id: UUID, body: ContentPublishWithoutAudioIn, request: Request, db: Db,
+                                admin: models.AdminUser = require('content', write=True)):
+    item = await _get(db, item_id)
+    if body.version != item.text_version:
+        raise conflict('VERSION_CONFLICT', 'El texto cambió; recarga y revísalo antes de publicar.')
+    await publish(db, item, request, without_audio_reason=body.reason)
+    await db.flush(); await db.refresh(item)
+    return await _saved(db, item)
+
+
+@router.post('/items/{item_id}/schedule-without-audio', response_model=ContentItemOut)
+async def schedule_without_audio(item_id: UUID, body: ContentScheduleWithoutAudioIn, request: Request, db: Db,
+                                 admin: models.AdminUser = require('content', write=True)):
+    item = await _get(db, item_id)
+    if body.version != item.text_version:
+        raise conflict('VERSION_CONFLICT', 'El texto cambió; recarga y revísalo antes de programar.')
+    if item.status != 'draft':
+        raise conflict('SCHEDULE_REQUIRES_DRAFT', 'La programación automática se aplica a borradores.')
+    when = as_utc(body.publish_at)
+    if when <= now_utc():
+        raise invalid('PUBLISH_AT_PAST', 'La fecha de publicación programada debe ser futura.')
+    check_publish(item, without_audio=True, authorized_schedule=bool(scheduled_audio_authorization(item)))
+    before = {'publish_at': as_utc(item.publish_at).isoformat() if item.publish_at else None,
+        'scheduled_without_audio': bool(scheduled_audio_authorization(item))}
+    previous_error = item.audio_error or (item.schedule_audio_exception or {}).get('audio_error')
+    item.publish_at = when
+    item.schedule_audio_exception = {'version': item.text_version, 'publish_at': when.isoformat(),
+        'reviewed_at': as_utc(item.reviewed_at).isoformat() if item.reviewed_at else None,
+        'reason': body.reason, 'review_confirmed': True, 'audio_error': previous_error,
+        'actor_id': str(admin.id), 'actor_name': admin.full_name, 'actor_role': admin.role,
+        'authorized_at': now_utc().isoformat()}
+    await audit(db, request, 'content.schedule_without_audio', 'content_item', item.id, before=before,
+        after={'title': item.title, 'text_version': item.text_version, 'publish_at': when.isoformat(),
+            'scheduled_without_audio': True, 'reason': body.reason, 'review_confirmed': True, 'audio_error': previous_error})
+    await db.flush(); await db.refresh(item)
+    return await _saved(db, item)
+
+
 @router.post("/items/{item_id}/unpublish", response_model=ContentItemOut)
 async def unpublish_item(item_id: UUID, request: Request, db: Db,
                          admin: models.AdminUser = require("content", write=True)):

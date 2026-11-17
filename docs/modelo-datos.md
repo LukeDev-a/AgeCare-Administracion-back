@@ -1,5 +1,9 @@
 # Modelo de datos para dbdiagram.io
 
+Actualización de pagos del17nov2026: migración0019 añade payment_subscriptions y payment_charges, vinculadas al directorio y entre sí, con versión e historial JSON persistidos. **43 tablas,432 columnas y18 claves foráneas** (las dos tablas añaden20 columnas). Solo pagos simulados, sin pasarela ni credenciales financieras. El DBML conserva únicamente relaciones físicas; los recuentos anteriores de abajo son históricos.
+
+Actualización del17 de noviembre de2026: **41 tablas,412 columnas y16 claves foráneas**. Se añade `content_items.schedule_audio_exception` (JSONB nullable, migración0018), autorización de programación con audio opcional ligada a versión, fecha, revisión y responsable. El recuento anterior del16 de noviembre que figura debajo es histórico.
+
 El archivo [modelo-datos.dbml](modelo-datos.dbml) contiene el código completo para pegar en https://dbdiagram.io/d.
 
 1. Abrir el archivo `.dbml` como texto en el editor.

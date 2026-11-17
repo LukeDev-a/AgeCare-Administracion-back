@@ -127,3 +127,10 @@ Render Free suspende servicios inactivos, no dispone de disco persistente y bloq
 - https://render.com/docs/environment-variables
 - https://render.com/docs/free
 - https://neon.com/docs/manage/database-access
+## Neon actualizado hasta0020 — 17nov2026
+
+Usuario inicia despliegue y elige «Conservar Neon y añadir lo nuevo», sin trasladar cancelaciones/reembolsos locales. Ejecutado scripts.migrate_neon_0020 primero solo consulta y después --apply:0017→0018→0019→0020 en una transacción. TLS propietario/runtime verificados, respaldo seleccionado cifrado y relectura comprobada antes de modificar. Preservados por comparación completa las32cuentas y6noticias, por manifest37otras tablas; directorio8fichas/19vínculos según corrección autorizada. Las dos tablas de pagos nuevas quedan vacías: primera apertura con versión nueva las inicializa una vez desde las cuentas de Neon, sin copiar operaciones locales.
+
+Concedidos SELECT/INSERT/UPDATE/DELETE de tablas de pagos al rol limitado existente, sin rotar credenciales ni otorgar DDL. check_database de Render con head0020 y auditoría protegida aprobado tras commit; acceso runtime a ambas tablas confirmado. Perfiles privados locales conservados por hashes. No seed global, copia total, envíos ni llamadas Gemini, ni cambios de Environment de Render/Vercel. Respaldo/reportes privados ignorados en backups/neon-schema-0020-20261117T181922083853Z; antes.enc incluye directorio/contenido/tablas seleccionadas y manifest del resto, no respaldo completo de base.10 pruebas aisladas de verificador/migraciones/pagos aprobadas antes de ejecutar.
+
+Siguiente paso: el usuario hace push del backend con todos los módulos y migraciones nuevos y espera deploy Render. Un reinicio de la versión antigua puede rechazar ahora el esquema nuevo hasta que llegue el código con head0020; no revertir la base ni quitar la comprobación. Después frontend/Vercel y verificación pública. Para el nuevo avance de analítica demo, revisar en Render dev ADMIN_COMMERCIAL_DEMO_REFRESH_ENABLED=true: no se modificó esa variable en esta operación. No poner URL propietaria/clave de servidor en Vercel.

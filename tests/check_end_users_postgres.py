@@ -53,7 +53,7 @@ async def main():
         seeded = await asyncio.gather(seed_once(), seed_once())
         assert sorted(seeded) == [False, True], seeded
         async with factory() as db:
-            for model, count in ((models.AppAccount, 32), (models.AppPatient, 7), (models.AppMembership, 14)):
+            for model, count in ((models.AppAccount, 32), (models.AppPatient, 8), (models.AppMembership, 19)):
                 assert await db.scalar(select(func.count()).select_from(model)) == count
         runtime_url = await provision_runtime(url.render_as_string(hide_password=False))
         runtime = create_async_engine(runtime_url, hide_parameters=True)
@@ -78,7 +78,7 @@ async def main():
             assert (await db.get(models.AdminSession, session_id)).revoked_at is None
             assert (await db.get(models.AuditLog, audit_id)).actor_name == 'Historia conservada'
             assert not (await db.get(models.AppAccount, identity)).is_active
-            assert await db.scalar(select(func.count()).select_from(models.AppMembership)) == 14
+            assert await db.scalar(select(func.count()).select_from(models.AppMembership)) == 19
             assert await db.scalar(select(func.count()).select_from(models.AuditLog).where(models.AuditLog.action == 'end_users.demo_deactivate')) == 1
         print('PostgreSQL OK: migración idempotente, carga concurrente sin duplicados, desactivación demo concurrente 200/409 con un evento, datos/vínculos/sesiones internas conservados y rol limitado compatible.')
     finally:

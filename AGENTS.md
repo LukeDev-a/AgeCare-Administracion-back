@@ -14,6 +14,7 @@ Lee [docs/CONTEXTO-TECNICO.md](docs/CONTEXTO-TECNICO.md) y [docs/invitaciones-mf
 - Integra mutaciones de negocio con `app/audit.py`, con campos sensibles protegidos. No restaures captura de clics ni eventos HTTP genéricos.
 - Fase 17 autoriza también logins correctos/fallidos y GET de conversaciones por página, mediante llamadas explícitas. Lee docs/auditoria-administrativa.md: 0011 y scripts.run_api protegen permisos PostgreSQL; no quitar el trigger ni ejecutar la API como propietario para eludirlos. Conservación mínima de dos años sin purga automática.
 - Fase18 conserva datos ficticios autorizados, solo dev+ADMIN_END_USERS_DEMO_ENABLED. Tablas app_accounts/app_patients/app_memberships y modelos AppAccount/AppPatient/AppMembership desde0017; conservar0012 como historial. Nombres de personas/correos Gmail del seed no son credenciales ni autorizan envíos.0017 renombra sin borrar, preserva UUID/vínculos/estados y solo reemplaza nombres y correos originales sin editar. Mantener banderas/etiquetas de procedencia, sin revocación móvil ni integración real. Lee docs/usuarios-pacientes-demo.md.
+- 0020 corrige únicamente ejemplos originales del directorio:7 cuentas propias con rol elder y Elvira sin cuenta con familiar Elena. Seed vacío32/8/19; no reejecutarlo sobre registros existentes. Conservar0017 congelada, personalizaciones y pagos; no asociar identidades reales solo por compartir nombre. Ver docs/usuarios-pacientes-demo.md para salvaguardas y evidencia local.
 
 ## Verificación
 

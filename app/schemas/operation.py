@@ -2,7 +2,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
+from pydantic import BaseModel, Field, HttpUrl, StrictBool, field_validator, model_validator
 
 from app.enums import (CaregiverStatus, ContentStatus, ContentType, ModerationItemType,
                        ModerationStatus, RejectReason)
@@ -27,6 +27,8 @@ class ContentItemOut(BaseModel):
     tags: list[str]
     status: ContentStatus
     publish_at: datetime | None
+    scheduled_without_audio: bool = False
+    scheduled_audio_exception_reason: str | None = None
     published_at: datetime | None
     created_by_name: str | None
     updated_at: datetime
@@ -54,6 +56,24 @@ class ContentPatchIn(BaseModel):
         if any(getattr(self, field) is None for field in self.model_fields_set - {'publish_at'}):
             raise ValueError('Solo la programación admite null para quitar la fecha.')
         return self
+
+
+class ContentPublishWithoutAudioIn(BaseModel):
+    model_config = {'extra': 'forbid', 'str_strip_whitespace': True}
+    version: int = Field(ge=1)
+    reason: str = Field(min_length=5, max_length=500)
+    review_confirmed: StrictBool
+
+    @field_validator('review_confirmed')
+    @classmethod
+    def require_review(cls, value):
+        if value is not True:
+            raise ValueError('Confirma la revisión del texto antes de publicar sin audio.')
+        return value
+
+
+class ContentScheduleWithoutAudioIn(ContentPublishWithoutAudioIn):
+    publish_at: datetime
 
 
 # ---- Marketplace ----

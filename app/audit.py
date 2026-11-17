@@ -16,6 +16,10 @@ SENSITIVE_KEYS |= {"smtp_password", "brevo_api_key", "gemini_api_key", "encrypti
 
 # Una consulta, un clic o la gestión técnica de una sesión no son cambios de negocio.
 BUSINESS_ACTIONS = {
+    'payments.initialize': ('Preparó suscripciones y cobros de presentación', 'Pagos y suscripciones'),
+    'payments.cancel': ('Canceló la renovación de una suscripción', 'Pagos y suscripciones'),
+    'payments.extend': ('Extendió el acceso de una suscripción', 'Pagos y suscripciones'),
+    'payments.refund': ('Registró un reembolso simulado', 'Pagos y suscripciones'),
     'end_users.demo_deactivate': ('Desactivó una cuenta de prueba', 'Usuarios y pacientes · demostración'),
     "games.create": ("Creó un juego o aplicación", "Juegos y aplicaciones"),
     "games.update": ("Modificó un juego o aplicación", "Juegos y aplicaciones"),
@@ -29,6 +33,8 @@ BUSINESS_ACTIONS = {
     "content.create": ("Creó contenido", "Contenido"),
     "content.update": ("Modificó contenido", "Contenido"),
     "content.publish": ("Publicó contenido", "Contenido"),
+    "content.publish_without_audio": ("Publicó contenido sin audio", "Contenido"),
+    "content.schedule_without_audio": ("Programó contenido con audio opcional", "Contenido"),
     "content.unpublish": ("Retiró contenido", "Contenido"),
     "content.delete": ("Eliminó contenido", "Contenido"),
     "content.approve": ("Aprobó el texto editorial", "Contenido"),
@@ -59,6 +65,7 @@ BUSINESS_ACTIONS = {
 }
 
 SECURITY_ACTIONS = {
+    'payments.read': ('Consultó suscripciones y cobros', 'Pagos y suscripciones'),
     'auth.mfa_recovery_request': ('Solicitó recuperar el acceso MFA', 'Seguridad de cuentas'),
     'auth.mfa_recovery_confirm': ('Confirmó por correo su solicitud MFA', 'Seguridad de cuentas'),
     'auth.mfa_recovery_failed': ('Verificación de recuperación MFA rechazada', 'Seguridad de cuentas'),
@@ -75,7 +82,7 @@ SECURITY_ACTIONS = {
     "ticket.conversation_read": ("Consultó una conversación de soporte", "Soporte"),
 }
 AUDIT_ACTIONS = {**BUSINESS_ACTIONS, **SECURITY_ACTIONS}
-SENSITIVE_READ_ACTIONS = {'ticket.conversation_read', 'end_users.demo_read', 'patients.demo_read',
+SENSITIVE_READ_ACTIONS = {'payments.read', 'ticket.conversation_read', 'end_users.demo_read', 'patients.demo_read',
                           'end_users.demo_list', 'patients.demo_list'}
 
 

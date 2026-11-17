@@ -78,7 +78,7 @@ def test_conflicting_tables_are_rejected_instead_of_merging():
 def test_seed_names_match_frozen_migration_and_emails_are_unique():
     from app.end_user_samples import ACCOUNTS, PATIENTS
     migration = load('0017_app_directory_names.py')
-    assert migration.ACCOUNTS == ACCOUNTS and migration.PATIENTS == PATIENTS
+    assert migration.ACCOUNTS == ACCOUNTS and migration.PATIENTS == PATIENTS[:7]
     assert len(ACCOUNTS) == len({email for _, email in ACCOUNTS}) == 32
-    assert len(PATIENTS) == 7
+    assert len(PATIENTS) == 8
     assert all(email.endswith('@gmail.com') and ' ' in name for name, email in ACCOUNTS)

@@ -15,7 +15,8 @@ from app.runtime_settings import feature_enabled
 from app.database import get_session_factory
 from app.security import as_utc, now_utc
 from app.content_editorial import editorial_ready, current_audio, publish
-from app.content_providers import SOURCE, ProviderError, fetch_posts, plain_text, adapt_news, narrate
+from app.content_audio import split_audio_text, join_audio
+from app.content_providers import SOURCE, ProviderError, diagnostic, fetch_posts, plain_text, adapt_news, narrate, tts_models
 
 
 async def control(db, key):
@@ -40,7 +41,26 @@ def next_provider_day():
     return (local + timedelta(days=1)).replace(hour=0, minute=1, second=0, microsecond=0).astimezone(ZoneInfo('UTC'))
 
 
-async def reserve_quota(kind, retry=False, estimated_tokens=0):
+async def tts_quota_controls(db, model):
+    if model not in tts_models():
+        raise ProviderError('PROVIDER_CONFIG_ERROR')
+    # Conservar consumo anterior: el contador legado pertenece al modelo que
+    # estaba configurado antes de habilitar respaldos, no a los modelos nuevos.
+    global_row = await control(db, 'quota_tts')
+    legacy = dict(global_row.data or {})
+    legacy_model = legacy.get('legacy_model', get_settings().gemini_tts_model)
+    global_data = legacy if legacy.get('day') == provider_day() else {'day': provider_day(), 'new_audio': 0}
+    global_data = {**global_data, 'legacy_model': legacy_model}
+    row = await control(db, 'quota_tts_' + model)
+    data = dict(row.data or {})
+    if not data and model == legacy_model and legacy.get('day') == provider_day():
+        data = {key: legacy[key] for key in ('day', 'count', 'times', 'token_times', 'blocked_until') if key in legacy}
+    if data.get('day') != provider_day():
+        data = {'day': provider_day(), 'count': 0}
+    return global_row, global_data, row, data
+
+
+async def reserve_quota(kind, retry=False, estimated_tokens=0, model=None):
     settings = get_settings()
     if not settings.gemini_api_key or not settings.gemini_free_tier_confirmed:
         raise ProviderError('GEMINI_NOT_CONFIGURED')
@@ -48,21 +68,28 @@ async def reserve_quota(kind, retry=False, estimated_tokens=0):
     daily = settings.gemini_tts_daily_limit if kind == 'tts' else settings.gemini_text_daily_limit
     rpm = settings.gemini_tts_rpm if kind == 'tts' else settings.gemini_text_rpm
     async with get_session_factory()() as db:
-        row = await control(db, key)
-        data = dict(row.data or {})
-        if data.get('day') != provider_day(): data = {'day': provider_day(), 'count': 0, 'new_audio': 0}
+        global_row = None
+        if kind == 'tts':
+            global_row, global_data, row, data = await tts_quota_controls(db, model or settings.gemini_tts_model)
+        else:
+            row = await control(db, key)
+            data = dict(row.data or {})
+            if data.get('day') != provider_day(): data = {'day': provider_day(), 'count': 0}
         times = [stamp for stamp in data.get('times', []) if stamp > now_utc().timestamp() - 60]
         token_times = [entry for entry in data.get('token_times', []) if entry[0] > now_utc().timestamp() - 60]
         blocked_until = data.get('blocked_until', 0)
         if blocked_until > now_utc().timestamp():
             return datetime.fromtimestamp(blocked_until, ZoneInfo('UTC'))
-        if data.get('count', 0) >= daily or (kind == 'tts' and not retry and data.get('new_audio', 0) >= settings.content_new_audio_daily_limit):
+        if data.get('count', 0) >= daily or (kind == 'tts' and not retry and global_data.get('new_audio', 0) >= settings.content_new_audio_daily_limit):
             return next_provider_day()
         if len(times) >= max(1, rpm): return now_utc() + timedelta(seconds=65)
         if kind == 'text' and sum(entry[1] for entry in token_times) + estimated_tokens > settings.gemini_text_input_tpm:
             return now_utc() + timedelta(seconds=65)
         data['count'] = data.get('count', 0) + 1
-        if kind == 'tts' and not retry: data['new_audio'] = data.get('new_audio', 0) + 1
+        if global_row is not None:
+            if not retry:
+                global_data['new_audio'] = global_data.get('new_audio', 0) + 1
+            global_row.data = global_data
         data['times'] = times + [now_utc().timestamp()]
         data['token_times'] = token_times + [[now_utc().timestamp(), estimated_tokens]]
         row.data = data
@@ -71,11 +98,50 @@ async def reserve_quota(kind, retry=False, estimated_tokens=0):
         return None
 
 
-async def block_quota(kind):
+async def block_quota(kind, model=None):
     async with get_session_factory()() as db:
-        row = await control(db, 'quota_tts' if kind == 'tts' else 'quota_text')
-        row.data = {**(row.data or {}), 'blocked_until': next_provider_day().timestamp()}
+        if kind == 'tts':
+            global_row, global_data, row, data = await tts_quota_controls(db, model or get_settings().gemini_tts_model)
+            global_row.data = global_data
+        else:
+            row = await control(db, 'quota_text')
+            data = row.data or {}
+        row.data = {**data, 'blocked_until': next_provider_day().timestamp()}
         await db.commit()
+
+
+async def narrate_with_fallback(job, text, retry):
+    models = list(tts_models())
+    preferred = (job.result or {}).get('tts_current_model')
+    if preferred in models:
+        models.remove(preferred)
+        models.insert(0, preferred)
+    waits, last_error = [], None
+    for model in models:
+        wait = await reserve_quota('tts', retry=retry, model=model)
+        if wait:
+            waits.append(wait)
+            continue
+        # Un respaldo del mismo audio no cuenta como otro artículo nuevo.
+        retry = True
+        job.result = {**(job.result or {}), 'tts_audio_started': True}
+        try:
+            audio = await narrate(text, model)
+            job.result = {**job.result, 'tts_current_model': model,
+                'tts_models_used': [*(job.result.get('tts_models_used') or []), model]}
+            return audio, None
+        except ProviderError as error:
+            if error.code not in {'QUOTA_REACHED', 'PROVIDER_UNAVAILABLE', 'INVALID_AUDIO_OUTPUT'}:
+                raise
+            diagnostic('tts', 'fallback', model=model, error=error.code)
+            if error.code == 'QUOTA_REACHED':
+                await block_quota('tts', model=model)
+                waits.append(next_provider_day())
+            else:
+                last_error = error
+    if last_error:
+        raise last_error
+    return None, min(waits)
 
 
 def parsed_date(value):
@@ -190,12 +256,44 @@ async def process_one():
                 if current_audio(target):
                     target.audio_status = 'ready'
                     job.status = 'done'; await db.commit(); return True
-                wait = await reserve_quota('tts', retry=job.kind == 'tts_retry')
+                text = target.title + '\n\n' + target.body
+                chunks = split_audio_text(text)
+                directory = Path(get_settings().content_audio_dir)
+                progress = (job.result or {}).get('tts_progress')
+                completed = 0
+                digest = hashlib.sha256(text.encode()).hexdigest()
+                if progress is not None:
+                    if (not isinstance(progress, dict) or progress.get('digest') != digest
+                            or type(progress.get('completed')) is not int
+                            or not 0 <= progress['completed'] < len(chunks)):
+                        raise ProviderError('AUDIO_STORAGE_ERROR')
+                    completed = progress['completed']
+                part_paths = [directory / f'{job.id}-part-{index}.wav' for index in range(len(chunks))]
+                if any(not path.is_file() for path in part_paths[:completed]):
+                    raise ProviderError('AUDIO_STORAGE_ERROR')
+                audio, wait = await narrate_with_fallback(job, chunks[completed],
+                    retry=job.kind == 'tts_retry' or completed > 0 or bool((job.result or {}).get('tts_audio_started')))
                 if wait:
                     job.status = target.audio_status = 'waiting_quota'; job.available_at = wait
                     await db.commit(); return True
-                audio = await narrate(target.title + '\n\n' + target.body)
-                directory = Path(get_settings().content_audio_dir)
+                if len(chunks) > 1:
+                    try:
+                        directory.mkdir(parents=True, exist_ok=True)
+                        part = part_paths[completed]
+                        temporary_part = part.with_suffix('.tmp')
+                        temporary_part.write_bytes(audio)
+                        os.replace(temporary_part, part)
+                        if completed + 1 < len(chunks):
+                            job.result = {**(job.result or {}), 'tts_progress': {'digest': digest, 'completed': completed + 1, 'total': len(chunks)}}
+                            job.status = target.audio_status = 'queued'
+                            job.error = target.audio_error = None
+                            job.attempts = 0
+                            await db.commit()
+                            diagnostic('tts', 'chunk_saved', completed=completed + 1, total=len(chunks))
+                            return True
+                        audio = join_audio([path.read_bytes() for path in part_paths])
+                    except OSError:
+                        raise ProviderError('AUDIO_STORAGE_ERROR') from None
                 name = f'{target.id}-{target.text_version}-{uuid4().hex}.wav'
                 temporary = directory / (name + '.tmp')
                 try:
@@ -205,13 +303,14 @@ async def process_one():
                     raise ProviderError('AUDIO_STORAGE_ERROR') from None
                 target.audio_file = name; target.audio_version = target.text_version
                 target.tts_ready = True; target.audio_status = 'ready'; target.audio_error = None
+                job.result = {'audio_chunks': len(chunks), 'tts_models_used': (job.result or {}).get('tts_models_used', [])}
             job.status = 'done'; job.finished_at = now_utc(); job.error = None
         except ProviderError as error:
             job.attempts += 1; job.error = error.code
             if error.code == 'QUOTA_REACHED' and job.kind != 'collect':
                 await block_quota('text' if job.kind == 'adapt' else 'tts')
                 job.status = 'waiting_quota'; job.available_at = next_provider_day()
-            elif error.code in {'GEMINI_NOT_CONFIGURED', 'PROVIDER_CONFIG_ERROR'} or job.attempts >= 3:
+            elif error.code in {'GEMINI_NOT_CONFIGURED', 'PROVIDER_CONFIG_ERROR', 'AUDIO_CONTENT_BLOCKED'} or job.attempts >= 3:
                 job.status = 'failed'; job.finished_at = now_utc()
             else:
                 job.status = 'queued'; job.available_at = now_utc() + timedelta(seconds=60 * job.attempts)
@@ -223,6 +322,11 @@ async def process_one():
                     target.status = 'waiting_quota' if job.status == 'waiting_quota' else 'failed' if job.status == 'failed' else 'queued'
                     target.editorial_note = error.code
         await db.commit()
+        if job.kind in {'tts', 'tts_retry'}:
+            # Estado confirmado tras commit; no imprimir errores externos ni contenido.
+            diagnostic('tts', 'job_result',
+                attempt=job.attempts,
+                state=job.status if job.status in {'queued', 'waiting_quota', 'failed', 'done'} else 'other')
         return True
 
 
@@ -255,5 +359,6 @@ async def content_worker():
             found = await process_one()
         except Exception:
             # No registrar excepción externa que pueda incluir clave/textos.
+            diagnostic('worker', 'unexpected_worker_error')
             found = False
         await asyncio.sleep(2 if found else 10)

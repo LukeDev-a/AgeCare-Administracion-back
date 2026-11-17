@@ -104,7 +104,7 @@ async def test_audio_approval_publication_edit_and_retirement(client, admin_head
     await isolate_jobs()
     monkeypatch.setattr(get_settings(), 'content_audio_dir', str(tmp_path))
     async def no_quota(*args, **kwargs): return None
-    async def audio(text): return b'RIFF-test-audio'
+    async def audio(text, model=None): return b'RIFF-test-audio'
     monkeypatch.setattr(pipeline, 'reserve_quota', no_quota)
     monkeypatch.setattr(pipeline, 'narrate', audio)
     item = await create(client, admin_headers)
@@ -259,6 +259,28 @@ async def test_tts_failure_preserves_text_and_allows_controlled_retry(client, ad
         stored.audio_status = 'failed'; await db.commit()
     retried = await client.post(url + '/audio/retry', headers=admin_headers)
     assert retried.status_code == 200 and retried.json()['audio_status'] == 'queued'
+
+
+async def test_provider_block_stops_retries_and_preserves_approved_draft(client, admin_headers, monkeypatch):
+    await isolate_jobs()
+    async def no_quota(*args, **kwargs): return None
+    async def blocked(*args): raise ProviderError('AUDIO_CONTENT_BLOCKED')
+    monkeypatch.setattr(pipeline, 'reserve_quota', no_quota)
+    monkeypatch.setattr(pipeline, 'narrate', blocked)
+    item = await create(client, admin_headers)
+    item_id = UUID(item['id'])
+    url = f'{BASE}/items/{item_id}'
+    await client.post(url + '/approve', headers=admin_headers, json={'version': 1})
+    assert await pipeline.process_one()
+    async with database._session_factory() as db:
+        stored = await db.get(models.ContentItem, item_id)
+        job = await db.scalar(select(models.ContentJob).where(models.ContentJob.target_id == item_id))
+        assert job.status == 'failed' and job.attempts == 1
+        assert stored.audio_status == 'failed' and stored.audio_error == 'AUDIO_CONTENT_BLOCKED'
+        assert stored.approved_version == stored.text_version == 1
+        assert stored.body == item['body'] and stored.status == 'draft' and not stored.tts_ready
+    published = await client.post(url + '/publish', headers=admin_headers)
+    assert published.status_code == 409
 
 
 async def test_collection_failure_does_not_remove_editorial_work(client, admin_headers, monkeypatch):

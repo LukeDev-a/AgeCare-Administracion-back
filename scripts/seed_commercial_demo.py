@@ -25,7 +25,7 @@ def identifier(key):
     return uuid5(NAMESPACE_URL, PREFIX + key)
 
 
-def dataset(now):
+def dataset(now, plan_prices=None):
     zone = ZoneInfo('America/Santiago')
     today = now.astimezone(zone).date()
     daily, accounts, activity, payments, plans = [], [], [], [], []
@@ -60,6 +60,8 @@ def dataset(now):
             gold, platinum = paying * 7 // 10, paying * 2 // 10
             for code, users, price in [('free', active - paying, None), ('gold', gold, 1000),
                 ('platinum', platinum, 10000), ('provider', paying - gold - platinum, 5000)]:
+                if plan_prices is not None and code != 'free':
+                    price = plan_prices[code]
                 plans.append(dict(id=identifier(f'plan-{day}-{code}'), data_origin='demo', as_of=day,
                     plan_code=code, users=users, price_clp=price, mrr_clp=users * (price or 0),
                     monthly_churn=round(cancellations / active, 4), computed_at=now))
@@ -67,8 +69,14 @@ def dataset(now):
     return daily, accounts, activity, payments, plans
 
 
-async def load_demo(db, now):
-    daily, accounts, activity, payments, plans = dataset(now)
+async def load_demo(db, now, *, observed_only=False, plan_prices=None):
+    daily, accounts, activity, payments, plans = dataset(now, plan_prices)
+    if observed_only:
+        today = now.astimezone(ZoneInfo('America/Santiago')).date()
+        daily = [row for row in daily if row['day'] <= today]
+        accounts = [row for row in accounts if row['created_at'] <= now]
+        activity = [row for row in activity if row['occurred_at'] <= now]
+        payments = [row for row in payments if row['occurred_at'] <= now]
     if db.bind.dialect.name == 'postgresql':
         await db.execute(sa.text('SELECT pg_advisory_xact_lock(20261110)'))
     existing = (await db.scalars(sa.select(models.MetricsDailyUsers).where(

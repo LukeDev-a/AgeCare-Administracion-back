@@ -31,8 +31,11 @@ async def seed_demo_directory(db):
     await db.flush()
     links = [(1, 1, 'family', True), (1, 2, 'caregiver', False), (1, 3, 'doctor', False), (1, 4, 'elder', False),
              (2, 1, 'caregiver', False), (2, 5, 'family', True), (2, 6, 'elder', False),
-             (3, 7, 'family', True), (3, 2, 'caregiver', False), (3, 3, 'doctor', False),
-             (4, 8, 'family', True), (4, 32, 'caregiver', False), (5, 9, 'family', True), (6, 10, 'family', True)]
+             (3, 7, 'elder', True), (3, 2, 'caregiver', False), (3, 3, 'doctor', False),
+             (4, 8, 'family', True), (4, 32, 'caregiver', False), (4, 21, 'elder', False),
+             (5, 9, 'family', True), (5, 20, 'elder', False),
+             (6, 10, 'family', True), (6, 25, 'elder', False),
+             (7, 26, 'elder', True), (8, 11, 'family', True)]
     db.add_all([models.AppMembership(id=demo_id(f'link-{p}-{u}'), patient_id=demo_id(f'patient-{p}'),
                 user_id=demo_id(f'user-{u}'), role=role, is_owner=owner) for p, u, role, owner in links])
     return True

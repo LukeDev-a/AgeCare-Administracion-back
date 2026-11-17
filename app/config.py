@@ -2,7 +2,7 @@
 from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import field_validator
+from pydantic import Field, field_validator
 from app.database_urls import normalize_database_url
 
 
@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     seed_demo_enabled: bool = False  # Compose dev lo habilita; nunca borra datos
     end_users_demo_enabled: bool = False  # solo dev: directorio ficticio, sin sesiones móviles
     commercial_worker_enabled: bool = True  # solo cálculo local; sin proveedores externos
+    commercial_demo_refresh_enabled: bool = False  # generación demo explícita, solo dev
     allows_origins: str
     database_url: str = "postgresql+asyncpg://agecare:agecare@localhost:5432/agecare_admin"
 
@@ -58,7 +59,9 @@ class Settings(BaseSettings):
     gemini_free_tier_confirmed: bool = False
     gemini_text_model: str = "gemini-3.5-flash-lite"
     gemini_tts_model: str = "gemini-3.1-flash-tts-preview"
+    gemini_tts_fallback_models: str = "gemini-3.8-flash-lite-tts,gemini-3.8-flash-tts"
     gemini_tts_voice: str = "Kore"
+    gemini_tts_timeout_seconds: int = Field(default=300, ge=60, le=600)
     content_audio_dir: str = "content_audio"
     news_collection_hour: int = 8
     news_collection_limit: int = 20

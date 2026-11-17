@@ -420,6 +420,7 @@ class ContentItem(Base):
     reviewed_by_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     publish_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    schedule_audio_exception: Mapped[dict | None] = mapped_column(PortableJSON, nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
@@ -530,6 +531,39 @@ class ModerationItem(Base):
     decided_by_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+
+# ============ Suscripciones y cobros de presentación ============
+class PaymentSubscription(Base):
+    __tablename__ = 'payment_subscriptions'
+    __table_args__ = (CheckConstraint('price >= 0 AND version >= 1', name='ck_payment_subscription_values'),
+        CheckConstraint("state IN ('active','past_due','cancelled')", name='ck_payment_subscription_state'))
+    id: Mapped[uuid.UUID] = pk()
+    code: Mapped[str] = mapped_column(String(24), unique=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('app_accounts.id'), unique=True)
+    plan: Mapped[str] = mapped_column(String(24))
+    price: Mapped[int] = mapped_column(Integer)
+    state: Mapped[str] = mapped_column(String(16))
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    history: Mapped[list] = mapped_column(PortableJSON, default=list)
+    data_origin: Mapped[str] = mapped_column(String(12), default='demo')
+
+
+class PaymentCharge(Base):
+    __tablename__ = 'payment_charges'
+    __table_args__ = (CheckConstraint('amount > 0 AND version >= 1', name='ck_payment_charge_values'),
+        CheckConstraint("state IN ('approved','pending','failed','refunded')", name='ck_payment_charge_state'))
+    id: Mapped[uuid.UUID] = pk()
+    code: Mapped[str] = mapped_column(String(24), unique=True)
+    subscription_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('payment_subscriptions.id'), index=True)
+    amount: Mapped[int] = mapped_column(Integer)
+    state: Mapped[str] = mapped_column(String(16))
+    charged_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    history: Mapped[list] = mapped_column(PortableJSON, default=list)
+    data_origin: Mapped[str] = mapped_column(String(12), default='demo')
 
 
 # ============ Configuración y legales ============

@@ -30,6 +30,8 @@ services:
       # Solo desarrollo. Carga módulos vacíos sin borrar ni modificar registros.
       ADMIN_SEED_DEMO_ENABLED: ${ADMIN_SEED_DEMO_ENABLED:-true}
       ADMIN_END_USERS_DEMO_ENABLED: ${ADMIN_END_USERS_DEMO_ENABLED:-true}
+      # Demostración comercial autorizada; no crea datos de origen real.
+      ADMIN_COMMERCIAL_DEMO_REFRESH_ENABLED: ${ADMIN_COMMERCIAL_DEMO_REFRESH_ENABLED:-true}
     ports:
       - "8000:8000"
     command: >
