@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, Request
 from sqlalchemy import func, select
 
 from app import models
+from app.config import get_settings
 from app.audit import audit
 from app.incident_mail import queue_incident
 from app.deps import Db, require
@@ -47,6 +48,14 @@ VALID_TRANSITIONS = {
 # ---------- 5.1 Status ----------
 @router.get("/status", response_model=StatusOut, dependencies=[require("ops")])
 async def status(db: Db):
+    if get_settings().ops_monitor_enabled:
+        from app.ops_monitor import real_status
+        components = await real_status(db)
+        known = [r.status for r in components if r.data_origin == 'real' and r.freshness != 'stored' and r.status is not None]
+        return StatusOut(monitoring_enabled=True,
+            overall=max(known, key=lambda s: _SEVERITY_ORDER[s], default=None),
+            checked_at=max((r.checked_at for r in components if r.freshness != 'stored' and r.checked_at is not None), default=None),
+            components=components)
     rows = (await db.execute(select(models.ComponentState))).scalars().all()
     components = sorted(rows, key=lambda r: list(ComponentKey).index(ComponentKey(r.key)))
     overall = max((ComponentStatus(r.status) for r in rows),
@@ -69,6 +78,12 @@ async def latency(db: Db,
     if window not in ("1h", "24h", "7d"):
         raise invalid("INVALID_WINDOW", "La ventana indicada no es válida. Usa 1h, 24h o 7d.")
     keys = list(dict.fromkeys(c.value for c in (components or SYNC_COMPONENTS)))
+    if get_settings().ops_monitor_enabled:
+        from app.ops_monitor import real_latency
+        rows = await real_latency(db, window, keys)
+        return LatencyOut(window=window, components=rows,
+            computed_at=max((r.computed_at for r in rows if r.computed_at is not None), default=None),
+            missing_components=[key for key in keys if not any(r.key == key and r.sample_count for r in rows)])
     rows = (await db.execute(select(models.LatencyWindow)
                              .where(models.LatencyWindow.window == window,
                                     models.LatencyWindow.component_key.in_(keys)))).scalars().all()

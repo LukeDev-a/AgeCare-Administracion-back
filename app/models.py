@@ -7,7 +7,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import (JSON, Boolean, CheckConstraint, Date, DateTime, Float, ForeignKey, Integer,
-                        String, Text, UniqueConstraint, Uuid, func)
+                        String, Text, UniqueConstraint, Uuid, func, Index)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -286,6 +286,24 @@ class FeatureUsageWindow(Base):
 
 
 # ============ Estado operativo ============
+class OpsObservation(Base):
+    """Una medición real, sin ruta, identidad, cuerpo ni credenciales HTTP."""
+    __tablename__ = 'ops_observations'
+    id: Mapped[uuid.UUID] = pk()
+    component_key: Mapped[str] = mapped_column(String(30), index=True)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    duration_ms: Mapped[float] = mapped_column(Float)
+    success: Mapped[bool] = mapped_column(Boolean)
+    source: Mapped[str] = mapped_column(String(24))
+    failure_kind: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    __table_args__ = (
+        CheckConstraint("component_key IN ('api_core', 'auth', 'database')", name='ck_ops_observation_component'),
+        Index('ix_ops_observations_component_time', 'component_key', 'observed_at', 'id'),
+        CheckConstraint('duration_ms >= 0', name='ck_ops_observation_duration'),
+        CheckConstraint("source IN ('http_requests', 'database_probe')", name='ck_ops_observation_source'),
+    )
+
+
 class ComponentState(Base):
     """Última foto recibida; el recolector real aún no está integrado."""
     __tablename__ = "ops_component_state"

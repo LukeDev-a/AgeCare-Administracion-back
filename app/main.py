@@ -25,9 +25,15 @@ async def lifespan(app):
     metrics_worker = asyncio.create_task(commercial_worker()) if get_settings().commercial_worker_enabled else None
     from app.demo_analytics import demo_analytics_worker
     demo_worker = asyncio.create_task(demo_analytics_worker()) if get_settings().commercial_demo_refresh_enabled and get_settings().environment == 'dev' else None
+    from app.ops_monitor import ops_monitor_worker
+    ops_worker = asyncio.create_task(ops_monitor_worker()) if get_settings().ops_monitor_enabled else None
     try:
         yield
     finally:
+        if ops_worker:
+            ops_worker.cancel()
+            with suppress(asyncio.CancelledError):
+                await ops_worker
         if demo_worker:
             demo_worker.cancel()
             with suppress(asyncio.CancelledError):
@@ -92,6 +98,8 @@ app.add_middleware(
 )
 
 app.add_middleware(RequestIdMiddleware)
+from app.ops_monitor import OpsMonitorMiddleware
+app.add_middleware(OpsMonitorMiddleware)
 register_error_handlers(app)
 
 api = APIRouter(prefix="/api/v1/admin")

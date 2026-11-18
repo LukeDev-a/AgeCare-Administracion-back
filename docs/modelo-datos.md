@@ -1,8 +1,6 @@
 # Modelo de datos para dbdiagram.io
 
-Actualización de pagos del17nov2026: migración0019 añade payment_subscriptions y payment_charges, vinculadas al directorio y entre sí, con versión e historial JSON persistidos. **43 tablas,432 columnas y18 claves foráneas** (las dos tablas añaden20 columnas). Solo pagos simulados, sin pasarela ni credenciales financieras. El DBML conserva únicamente relaciones físicas; los recuentos anteriores de abajo son históricos.
-
-Actualización del17 de noviembre de2026: **41 tablas,412 columnas y16 claves foráneas**. Se añade `content_items.schedule_audio_exception` (JSONB nullable, migración0018), autorización de programación con audio opcional ligada a versión, fecha, revisión y responsable. El recuento anterior del16 de noviembre que figura debajo es histórico.
+Actualizado el **17 de noviembre de 2026** desde los modelos actuales del backend: **43 tablas, 432 columnas y 18 claves foráneas**.
 
 El archivo [modelo-datos.dbml](modelo-datos.dbml) contiene el código completo para pegar en https://dbdiagram.io/d.
 
@@ -10,9 +8,24 @@ El archivo [modelo-datos.dbml](modelo-datos.dbml) contiene el código completo p
 2. Copiar todo su contenido.
 3. En dbdiagram.io, crear un diagrama y reemplazar el ejemplo del panel de código por ese contenido.
 
-Incluye **41 tablas, 411 columnas y 16 claves foráneas** declaradas en `app/models.py` y `app/analytics_models.py`, registrado desde el primero, del backend administrativo. Actualizado el 16 de noviembre de 2026: incluye recuperación de contraseña, recuperación de acceso MFA y colas de correo, además de las tres tablas `app_accounts`, `app_patients` y `app_memberships` de fase18, autoría de juegos y event_metadata de auditoría, además de fases 04, 05 y 06. Las nuevas tablas son exclusivamente de demostración, **no el modelo canónico de cuentas/pacientes de la API móvil real**. Es un modelo físico obtenido del código, no una inspección de una base desplegada. No incluye la tabla técnica `alembic_version`, registros ni el esquema de otra API móvil. La interfaz React no tiene una base independiente que añadir aquí. Los permisos/triggers de 0011 se explican en [auditoría administrativa](auditoria-administrativa.md); DBML representa columnas/relaciones, no esos permisos.
+Representa las tablas declaradas en `app/models.py` y `app/analytics_models.py`. Incluye autenticación y MFA, cuentas de la consola, recuperación de acceso y colas de correo, analítica, tickets, contenido y audio, marketplace, moderación, juegos, configuración, legales, auditoría, directorio de cuentas y adultos mayores, y suscripciones y cobros persistidos.
 
-Migración0017 actualiza los nombres físicos del directorio y conserva sus datos. El DBML refleja esos nombres; debe migrarse una instalación anterior antes de desplegar el backend nuevo. Los nombres/correos de personas se guardan como registros: no aparecen dentro del DBML, que solo representa estructura.
+El directorio `app_accounts`, `app_patients` y `app_memberships` conserva las identidades ficticias autorizadas para la presentación; **no representa un servicio móvil real ya integrado**. Las tablas de pagos también almacenan operaciones simuladas, sin pasarela ni credenciales financieras. El modelo no incluye la tabla técnica `alembic_version`, registros ni el esquema de otra API móvil. La interfaz React utiliza esta API y no tiene una base independiente que añadir al diagrama. Los permisos y triggers de auditoría de 0011 se explican en [auditoría administrativa](auditoria-administrativa.md); DBML representa columnas y relaciones, no esos permisos.
+
+## Cambios recientes incluidos
+
+| Migración | Cambio | Representación en el modelo |
+|---|---|---|
+| 0017 | Nombres definitivos del directorio. | `app_accounts`, `app_patients` y `app_memberships`, conservando identificadores y vínculos. |
+| 0018 | Autorización de publicación programada sin audio tras fallo, con revisión explícita. | Columna JSONB opcional `content_items.schedule_audio_exception`. |
+| 0019 | Persistencia de suscripciones y cobros de presentación. | Tablas `payment_subscriptions` y `payment_charges`: 20 columnas y dos relaciones nuevas. |
+| 0020 | Corrección de roles propios y ejemplo de adulta mayor sin cuenta. | Solo registros y vínculos; no añade tablas, columnas ni claves foráneas. |
+
+En suscripciones se guardan la cuenta asociada, el plan, el precio mensual, el estado, las fechas del período, la versión, el historial de operaciones y el origen de los datos. Cada cobro conserva su suscripción, importe, estado, fecha, versión e historial.
+
+Las relaciones añadidas son `payment_subscriptions.user_id → app_accounts.id` y `payment_charges.subscription_id → payment_subscriptions.id`. Los historiales se almacenan en JSONB; no se inventa una tabla adicional de movimientos. Las restricciones CHECK validan importes, versiones y estados; los códigos son únicos y cada cuenta tiene una suscripción en este alcance.
+
+Los nombres y correos de personas son registros y no aparecen en el DBML. La corrección de Carmen Soto y la nueva ficha de Elvira Paredes se documentan en [usuarios y pacientes](usuarios-pacientes-demo.md), y los pagos en [pagos simulados](pagos-simulados.md).
 
 ## Cómo interpretarlo
 
@@ -37,4 +50,8 @@ Desde la raíz del backend, con las dependencias ya instaladas:
 
 El exportador importa metadata de SQLAlchemy sin abrir una conexión a PostgreSQL, leer el `.env`, cargar registros ni ejecutar migraciones. Solo escribe `docs/modelo-datos.dbml`. No modifica código de negocio ni la base.
 
-Exportación inicial: 24 de octubre de 2026. Regenerado el 16 de noviembre de 2026 desde metadata ORM y validado con el parser de `@dbml/cli` mediante conversión a SQL PostgreSQL. El SQL de comprobación está en `outputs/modelo-datos-validacion.sql` del workspace y no se ha ejecutado contra ninguna base. No se ha importado el archivo en una cuenta de dbdiagram.io. El diagrama describe la estructura del código actual, no certifica el estado de una base desplegada.
+## Validación y estado
+
+Exportación inicial: 24 de octubre de 2026. Regenerado el 17 de noviembre de 2026 desde metadata ORM y validado correctamente con el parser de `@dbml/cli` mediante conversión a SQL PostgreSQL. El SQL de comprobación se conserva en `outputs/modelo-datos-validacion.sql` del workspace; no se ejecuta contra ninguna base. No se ha importado el archivo en una cuenta de dbdiagram.io.
+
+La migración hasta 0020 ya se aplicó y verificó en Docker local y Neon. La exportación DBML se obtiene del código y no consulta esas bases; la evidencia del despliegue se documenta por separado en [Render y Neon](render-neon.md).

@@ -6,32 +6,47 @@ from pydantic import AwareDatetime, BaseModel, Field, field_validator, model_val
 from app.enums import ComponentKey, ComponentStatus, IncidentStatus
 
 
-class ComponentOut(BaseModel):
+class ObservationMetadata(BaseModel):
+    sample_count: int = 0
+    successful_sample_count: int = 0
+    first_observed_at: datetime | None = None
+    last_observed_at: datetime | None = None
+    observed_success_rate: float | None = None
+    coverage_seconds: float | None = None
+    coverage_ratio: float | None = None
+    freshness: str = 'no_data'
+    measurement_source: str | None = None
+    minimum_samples: int = 20
+
+
+class ComponentOut(ObservationMetadata):
     key: ComponentKey
     name: str
-    status: ComponentStatus
-    uptime_30d: float
+    status: ComponentStatus | None
+    uptime_30d: float | None
     latency_p50_ms: int | None
     latency_p95_ms: int | None
     note: str | None
-    checked_at: datetime
+    checked_at: datetime | None
     data_origin: str
     measurement_kind: str
 
 
 class StatusOut(BaseModel):
+    monitoring_enabled: bool = False
+    sample_window: str = '1h'
     overall: ComponentStatus | None
     checked_at: datetime | None
     components: list[ComponentOut]
 
 
-class LatencyRow(BaseModel):
+class LatencyRow(ObservationMetadata):
     key: ComponentKey
     name: str
-    p50_ms: int
-    p95_ms: int
+    p50_ms: int | None
+    p95_ms: int | None
     sample_count: int
-    computed_at: datetime
+    computed_at: datetime | None
     data_origin: str
     measurement_kind: str
 

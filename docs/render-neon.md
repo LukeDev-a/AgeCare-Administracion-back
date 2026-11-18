@@ -1,5 +1,13 @@
 # Render + Neon — demostración de AgeCare
 
+## Monitoreo: Neon actualizado hasta0021 — 18nov2026
+
+Autorizado por usuario para comenzar el despliegue conservando Neon. scripts.migrate_neon_0021 (sin flag solo consulta) comprobó0020, TLS verificado y protección de auditoría. Después de36 pruebas aisladas, --apply añadió tabla ops_observations, constraints e índices en una transacción y verificó huellas de43 tablas previas sin cambios. Se conservan30juegos,32cuentas/8adultos/19vínculos,32suscripciones/64cobros y6contenidos. No se copió información local ni se ejecutó seed.
+
+Permisos SELECT/INSERT/UPDATE/DELETE de tabla nueva concedidos al rol limitado existente; check_database del runtime correcto, auditoría SELECT/INSERT y trigger intactos. Perfiles privados sin modificar y secretos sin rotar. before.enc en backups/neon-schema-0021-20261118T232916453687Z contiene revisión/huellas cifradas: no es copia completa de datos. report.json conserva evidencia agregada del commit y verificación.
+
+No se hizo push ni despliegue. Ahora subir backendhead0021 y desplegar Render, después frontendVercel. El código viejohead0020 puede rechazar un arranque con el esquema0021; no revertir la base, actualizar el código. ADMIN_OPS_MONITOR_ENABLED=true por defecto; conservar los otros valores remotos. Las observaciones empezarán a acumularse con el backend nuevo activo, sin importar historial local. Revisión visual pública pendiente tras desplegar.
+
 ## Directorio migrado a0017 — 16 de noviembre de 2026
 
 Usuario autorizó aplicar las migraciones a Neon. Consulta previa confirmó0016,32 cuentas,7 pacientes y14 vínculos;25 pruebas dirigidas aprobadas antes de aplicar. scripts.migrate_neon_0017 --apply ejecutó0017 en una transacción: renombró demo_app_accounts/demo_app_patients/demo_app_memberships a app_accounts/app_patients/app_memberships y sustituyó únicamente las32 identidades y7 nombres de paciente originales que coincidían con el catálogo de ejemplo. UUID, estados, fechas, vínculos y demás campos comparados completos con el resultado previsto;0 relaciones huérfanas. Las38 tablas restantes, incluida configuración/cuentas administrativas/colas/auditoría, conservaron sus huellas dentro de la operación.
