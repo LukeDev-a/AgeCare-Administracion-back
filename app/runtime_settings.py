@@ -1,6 +1,7 @@
 """Lecturas operativas con TTL fijo; GET administrativo siempre consulta PostgreSQL."""
 import asyncio
 import copy
+import math
 import time
 
 from sqlalchemy import select
@@ -9,7 +10,7 @@ from app import models
 from app.database import get_session_factory
 from app.errors import ApiError
 
-KEYS = ('system_texts', 'feature_flags')
+KEYS = ('system_texts', 'feature_flags', 'ops_thresholds.api_core')
 
 
 class SettingsCache:
@@ -47,6 +48,16 @@ class SettingsCache:
 
 
 cache = SettingsCache()
+
+
+async def api_thresholds(db):
+    setting = await cache.get(db, 'ops_thresholds.api_core')
+    value = setting['value'] if setting else {'p95_ms': 500, 'error_rate': 0.02}
+    if (not isinstance(value, dict) or type(value.get('p95_ms')) is not int or value['p95_ms'] < 50
+            or type(value.get('error_rate')) not in (int, float)
+            or not math.isfinite(value['error_rate']) or not 0 <= value['error_rate'] <= 1):
+        raise ApiError(503, 'SETTINGS_UNAVAILABLE', 'Los límites de evaluación de la API no son válidos. Revisa Configuración.')
+    return value
 
 
 async def feature_enabled(db, key):

@@ -9,6 +9,7 @@ from app.errors import invalid
 from app.schemas.metrics import (AdoptionAlert, AdoptionOut, AlertsOut, FeatureAdoptionRow, AdoptionCalculation,
                                  TopByRole, TopFeature, TopOut)
 from app.security import now_utc
+from app.usage_demo import data_through, lock_usage_read
 
 router = APIRouter(prefix="/metrics/features", tags=["Uso por funcionalidad"],
                    dependencies=[require("metrics")])
@@ -23,6 +24,7 @@ def _check_days(days: int) -> int:
 
 async def _adoption_map(db, days: int) -> tuple[list[models.Feature], dict, dict, object]:
     """features ordenadas, uso {(feature, role): users}, activos {role: n}, computed_at."""
+    await lock_usage_read(db)
     features = (await db.execute(select(models.Feature)
                                  .order_by(models.Feature.sort_order))).scalars().all()
     usage_rows = (await db.execute(select(models.FeatureUsageWindow)
@@ -69,6 +71,7 @@ async def adoption(db: Db, days: int = Query(default=30)):
         matrix.append(FeatureAdoptionRow(feature_key=feature.feature_key, name=feature.name,
             adoption=[value for value, _ in cells], calculation_details=[details for _, details in cells]))
     return AdoptionOut(
+        data_through=await data_through(db),
         days=days, roles=ROLE_ORDER,
         features=matrix,
         computed_at=computed)
@@ -87,7 +90,7 @@ async def top(db: Db, days: int = Query(default=30), limit: int = Query(default=
         out.append(TopByRole(role=role,
                              features=[TopFeature(feature_key=f.feature_key, name=f.name, adoption=s)
                                        for f, s in scored[:limit]]))
-    return TopOut(top_by_role=out, computed_at=computed)
+    return TopOut(top_by_role=out, computed_at=computed, data_through=await data_through(db))
 
 
 # ---------- 7.3 Adoption alerts ----------
@@ -112,4 +115,4 @@ async def alerts(db: Db, days: int = Query(default=30),
                                         expected_low=f.expected_low, note=f.note))
     # las de emergencia (expected_low) al final
     result.sort(key=lambda a: (a.expected_low, min(a.adoption)))
-    return AlertsOut(threshold=threshold, alerts=result, computed_at=computed)
+    return AlertsOut(threshold=threshold, alerts=result, computed_at=computed, data_through=await data_through(db))

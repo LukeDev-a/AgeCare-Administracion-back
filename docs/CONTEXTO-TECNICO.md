@@ -1,5 +1,35 @@
 # Mapa del backend
 
+## Neon0022 aplicado — 19nov2026
+
+Usuario autorizó migración; scripts.migrate_neon_0022 sinapply verificó0021 y conapply creó solo dos tablas de sesiones/identidades analíticas, más índices y permisosDML delruntime existente.44tablas anteriores preservadas por huellas; auditoría/TLS/credenciales intactos y check_databasehead0022 correcto.7pruebas del procedimiento/migración aprobadas. Reporte committed en backups/neon-schema-0022-20261119T144109882316Z (respaldo metadatos/huellas cifrado,no filascompletas). No preparación de actividadremota: tablasvacías,marker sincrear; no seed ni cambio a datos comerciales/pagos/directorio. Pendientepushbackendhead0022yfront por usuario. Ver render-neon.md.
+
+## Parámetro de salud API conectado — 19nov2026
+
+Validación final:592 pruebas completas aprobadas. API local reconstruida,health200; consulta de solo lectura confirma aplicación real de500ms/2%,361muestras,p9547ms,operational. No se modificaron valores ni observaciones locales para probar; sin Neon ni migración. Sustituye mención en curso abajo.
+
+ops_monitor.real_status consume ops_thresholds.api_core por runtime_settings.api_thresholds/cache60s, con invalidación postcommit existente y refresh_worker. Evalúa p95correctas de última hora (mínimo20) y fallos técnicos/total de hora, con límite inclusivo; cualquiera superado degrada api_core. Sin éxito reciente conserva caída; sin actividad180s estado desconocido. DB/auth/otros sin cambios. Note expone límites/ventana/muestras insuficientes. Fallback500ms/2% solo si clave ausente, configuración inválida falla explícitamente. Sin cambios de observaciones/timeouts, datos locales ni esquema. Pruebas nuevas cubren límites/igualdad, TTL, servicios independientes, stale y cambio auditado que invalida caché; suite completa en curso. Ver monitoreo-operativo.md.
+
+## Filtro de candidatos con borrador — 19nov2026
+
+GET content/candidates añade has_draft booleano opcional; true exige item_id no nulo y false nulo, sin inferir publicación desde status. Filtro previo a total/paginación, orden estable created_at/id descendentes. Sin parámetro conserva contrato/listado completo. No modifica registros, permisos, creación/publicación ni esquema.25 pruebas contenido/importación aprobadas; frontend separa pendientes y vinculados con paginación independiente.
+
+## Tickets: búsqueda de solicitante corregida — 19nov2026
+
+Validación final:583 pruebas completas correctas; filtro JSON de cuatro roles comprobado en PostgreSQL local sin escritura. API local reconstruida, health200. No Neon/despliegue remoto. Supera el estado en curso indicado abajo.
+
+support.create_ticket consulta AppAccount por correo exacto normalizado (case insensitive), únicamente con demo_available del directorio. Deja de usar tickets anteriores como aproximación de identidad. Cero o varias coincidencias: USER_NOT_FOUND con mensaje no concluyente y confirm_unlinked explícito; incluso un ticket anterior sin vínculo no elimina esa confirmación. Cuenta encontrada: UUID/nombre actuales, roles únicos de AppMembership y estado capturados en requester_context como snapshot. Un único rol conserva requester_role; múltiples se exponen en nuevo Requester.roles y filtro JSON roles[perfil] booleano; no se escoge un perfil global. No copia planes/contexto de tickets previos, no consulta admin_users, no envía correo ni cambia tickets anteriores. Cuenta inactiva o sin membresías puede pedir ayuda. Sin cambio de esquema/permisos, sin integración de identidad móvil externa.42 pruebas backend dirigidas aprobadas; suite completa en curso.
+
+## Resumen de roles en directorio — 19nov2026
+
+EndUserOut añade roles (lista AppRole única/ordenada) derivada de membresías, sin columna/rol global. Lista obtiene membresías de la página en consulta conjunta y conserva conteo completo aunque un rol se repita. Detalle deriva el mismo resumen. Permisos/admin, procedencia y vínculos sin cambios; ninguna migración ni integración móvil nueva.24 pruebas de directorio correctas, incluyendo múltiples vínculos del mismo rol y cuentas sin vínculo. Frontend muestra roles y tarjetas de relación explícitas.
+
+## Actividad/adopción diaria compartida — 19nov2026
+
+Validación cerrada:579backendcompletas y6nuevasrepetidas,25frontenddirigidas/build/lint correctos, healthlocal200. FuentePostgreSQL verificada. Sustituye «en curso» de esta sección. No validación visual nueva/Neon/despliegue.
+
+Alcance final excluye Pagos y Uso comercial.0022 añade analytics_usage_accounts/sessions; app/usage_demo.py calcula role_activity_window,role_weekly_active,feature_usage_window desde la misma actividad sintética. app/main integra worker condicionado a dev/ADMIN_USAGE_DEMO_REFRESH_ENABLED, defaultfalse/Compose true; sin marcador preparado no genera datos. Solo días completos anteriores, recovery diario atómico, horizonte24dic2026 y congelado después. No fuentes móviles ni escrituras en módulos ajenos. Endpoints conservan permisos y añaden data_through; UI explica corte y retención de dos ventanas30d. Local0022/fuente preparada3222cuentas86214sesiones,41tablasajenas y fuentescomercialesintactas; checkPostgreSQL12/117ventanas correctas. Neon sigue0021, pendiente operación específica antes de desplegar. Ver actividad-adopcion-diaria.md para reglas/respaldo/límites. Pruebas completas en curso.
+
 ## Neon0021 aplicado — 18nov2026
 
 scripts.migrate_neon_0021 --apply migró0020→0021, preservó huellas de43 tablas anteriores, añadió ops_observations vacío/índices y permisos DML al runtimeRender existente. Protección de auditoría y check_database runtime verificados; perfiles privados intactos.36 pruebas dirigidas previas correctas. No seed/importaciónlocal/push/deploy/reinicio. Metadatos/huellas cifrados (no backup completo de filas) y reporte en backups/neon-schema-0021-20261118T232916453687Z. Próximo desplegar códigohead0021 en Render y luego frontend; código viejo puede rechazar arrancar por revisión distinta. Esto sustituye pendientes Neon descritos más abajo.

@@ -24,11 +24,9 @@ def pattern(q):
     return '%' + q.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_') + '%'
 
 
-async def user_summary(db, user):
-    count = await db.scalar(select(func.count()).select_from(models.AppMembership)
-                             .where(models.AppMembership.user_id == user.id))
+def user_summary(user, roles):
     return EndUserOut(user_id=user.id, full_name=user.full_name, email=user.email,
-                      is_active=user.is_active, memberships_count=count)
+                      is_active=user.is_active, memberships_count=len(roles), roles=sorted(set(roles)))
 
 
 async def user_detail(db, user):
@@ -37,7 +35,7 @@ async def user_detail(db, user):
                             .where(models.AppMembership.user_id == user.id)
                             .order_by(models.AppPatient.full_name, models.AppPatient.id))).all()
     return EndUserDetailOut(user_id=user.id, full_name=user.full_name, email=user.email, is_active=user.is_active,
-        memberships_count=len(rows), memberships=[MembershipOut(patient_id=p.id, patient_name=p.full_name,
+        memberships_count=len(rows), roles=sorted({m.role for m, _ in rows}), memberships=[MembershipOut(patient_id=p.id, patient_name=p.full_name,
             role=m.role, is_owner=m.is_owner) for m, p in rows],
         deactivated_at=as_utc(user.deactivated_at), deactivation_reason=user.deactivation_reason)
 
@@ -57,7 +55,13 @@ async def list_users(request: Request, db: Db, admin: models.AdminUser = require
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
     rows = (await db.scalars(stmt.order_by(models.AppAccount.full_name, models.AppAccount.id)
                              .offset((page-1)*page_size).limit(page_size))).all()
-    result = EndUserPage(items=[await user_summary(db, row) for row in rows], total=total, page=page, page_size=page_size)
+    roles_by_user = {row.id: [] for row in rows}
+    if rows:
+        memberships = (await db.execute(select(models.AppMembership.user_id, models.AppMembership.role)
+            .where(models.AppMembership.user_id.in_(roles_by_user)))).all()
+        for user_id, role in memberships:
+            roles_by_user[user_id].append(role)
+    result = EndUserPage(items=[user_summary(row, roles_by_user[row.id]) for row in rows], total=total, page=page, page_size=page_size)
     await audit(db, request, 'end_users.demo_list', 'demo_app_account', actor=admin,
                 metadata={'page': page, 'page_size': page_size})
     return result

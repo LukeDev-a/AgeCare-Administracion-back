@@ -18,6 +18,7 @@ class EndUserOut(DemoSource):
     email: str
     is_active: bool
     memberships_count: int
+    roles: list[AppRole] = Field(default_factory=list)
 
 
 class MembershipOut(BaseModel):

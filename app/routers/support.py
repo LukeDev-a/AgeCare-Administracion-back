@@ -3,7 +3,7 @@ from datetime import timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Request
-from sqlalchemy import case, func, select
+from sqlalchemy import case, func, or_, select
 
 from app import models
 from app.audit import audit
@@ -11,6 +11,7 @@ from app.deps import Db, require
 from app.enums import (CATEGORY_NAMES, WRITE, AppRole, TicketCategory, TicketChannel, TicketPriority,
                        TicketStatus)
 from app.errors import ApiError, conflict, not_found
+from app.end_users_demo import demo_available
 from app.schemas.common import Page
 from app.schemas.support import (Assignee, ByCategoryOut, CategoryRow, Csat, ReplyCreateIn,
                                  ReplyOut, Requester, SupportDeltas, SupportSummaryOut,
@@ -38,11 +39,14 @@ VALID_TRANSITIONS = {
 
 
 def _ticket_out(t: models.Ticket) -> TicketOut:
+    role_snapshot = (t.requester_context or {}).get('roles', {})
+    roles = [role for role in AppRole if isinstance(role_snapshot, dict) and role_snapshot.get(role.value) is True]
     return TicketOut(
         id=t.id, number=t.number, subject=t.subject,
         requester=Requester(user_id=t.requester_user_id, name=t.requester_name,
                             role=AppRole(t.requester_role) if t.requester_role else None,
-                            email=t.requester_email),
+                            email=t.requester_email,
+                            roles=roles),
         category=TicketCategory(t.category), priority=TicketPriority(t.priority),
         status=TicketStatus(t.status),
         assigned_to=Assignee(admin_id=t.assignee.id, name=t.assignee.full_name) if t.assignee else None,
@@ -135,7 +139,8 @@ async def list_tickets(db: Db,
     if category:
         stmt = stmt.where(models.Ticket.category == category)
     if role:
-        stmt = stmt.where(models.Ticket.requester_role == role)
+        stmt = stmt.where(or_(models.Ticket.requester_role == role,
+            models.Ticket.requester_context['roles'][role.value].as_boolean().is_(True)))
     if assigned_to:
         stmt = stmt.where(models.Ticket.assigned_to == assigned_to)
     if q:
@@ -190,22 +195,31 @@ async def ticket_detail(ticket_id: str, db: Db):
 @router.post("/tickets", response_model=TicketOut, status_code=201)
 async def create_ticket(body: TicketCreateIn, request: Request, db: Db,
                         admin: models.AdminUser = require("support", write=True)):
-    # En producción se buscaría en la tabla de usuarios de la app; aquí se enlaza
-    # contra los tickets previos del mismo correo como aproximación.
-    prev = (await db.execute(select(models.Ticket)
-                             .where(models.Ticket.requester_email == body.user_email.lower())
-                             .limit(1))).scalar_one_or_none()
-    if prev is None and not body.confirm_unlinked:
+    # El directorio local conserva su habilitación; no sustituye identidades móviles.
+    # Un ticket anterior nunca acredita que el solicitante tenga cuenta.
+    email = str(body.user_email).strip().lower()
+    account = None
+    roles = []
+    if demo_available():
+        matches = (await db.scalars(select(models.AppAccount)
+            .where(func.lower(models.AppAccount.email) == email).limit(2))).all()
+        if len(matches) == 1:
+            account = matches[0]
+            roles = sorted(set(await db.scalars(select(models.AppMembership.role)
+                .where(models.AppMembership.user_id == account.id))))
+    if account is None and not body.confirm_unlinked:
         raise ApiError(404, "USER_NOT_FOUND",
-                       "No existe ningún usuario con ese correo. Verifícalo o crea el ticket sin enlazar "
-                       "(confirm_unlinked = true).")
+                       "No pudimos asociar el correo a una cuenta del directorio. Revisa el correo "
+                       "o confirma la creación del ticket sin vincular una cuenta.")
     next_number = ((await db.execute(select(func.max(models.Ticket.number)))).scalar_one() or 1000) + 1
     t = models.Ticket(number=next_number, subject=body.subject, description=body.description,
-                      requester_user_id=prev.requester_user_id if prev else None,
-                      requester_name=prev.requester_name if prev else body.user_email.split("@")[0],
-                      requester_email=body.user_email.lower(),
-                      requester_role=prev.requester_role if prev else None,
-                      requester_plan=prev.requester_plan if prev else None,
+                      requester_user_id=account.id if account else None,
+                      requester_name=account.full_name if account else email.split("@")[0],
+                      requester_email=email,
+                      requester_role=roles[0] if len(roles) == 1 else None,
+                      requester_plan=None,
+                      requester_context={'roles': {role: True for role in roles},
+                          'account_state': 'Activa' if account.is_active else 'Inactiva'} if account else None,
                       category=body.category, priority=body.priority,
                       status=TicketStatus.open, channel=body.channel)
     db.add(t)

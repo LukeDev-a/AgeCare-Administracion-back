@@ -1,5 +1,9 @@
 # Modelo de datos para dbdiagram.io
 
+## Ampliación de actividad/adopción — 19nov2026
+
+Migración0022 añade `analytics_usage_accounts` (4columnas) y `analytics_usage_sessions` (6columnas), con FK de sesión a cuenta analítica, para la demostración compartida de actividad/adopción. No son cuentas de login ni del directorio y no se relacionan con pagos. El DBML incorpora estas dos tablas y su relación; las cifras de la entrega histórica del17nov de abajo no incluyen esta ampliación ni ops_observations de0021. Reglas/horizonte y evidencia local en [actividad-adopcion-diaria.md](actividad-adopcion-diaria.md).
+
 Actualizado el **17 de noviembre de 2026** desde los modelos actuales del backend: **43 tablas, 432 columnas y 18 claves foráneas**.
 
 El archivo [modelo-datos.dbml](modelo-datos.dbml) contiene el código completo para pegar en https://dbdiagram.io/d.

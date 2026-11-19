@@ -1,5 +1,13 @@
 # Render + Neon — demostración de AgeCare
 
+## Neon migrado hasta0022 — 19nov2026
+
+Por autorización explícita del usuario, scripts.migrate_neon_0022 comprobó0021,45tablas incluidaversión,TLS verificado y auditoría protegida; tras7pruebas aisladas aplicó0021→0022 en transacción. Creó analytics_usage_accounts/analytics_usage_sessions e índices,ambasvacías. Huellas de44tablas existentes idénticas antes/después en la transacción:32cuentas/8adultos/19vínculos,32suscripciones/64cobros,6contenidos/20candidatos,30juegos,254tickets,configuración y auditoría conservados. No seed,copia de datos locales,correos,proveedores ni rotación de secretos.
+
+SELECT/INSERT/UPDATE/DELETE concedidos solo en las dos tablas nuevas al rol limitado ya existente. check_database del códigohead0022 y consulta real con runtime correctos,TLS/auditoría intactos; perfiles privados sin modificar. Respaldo cifrado de revisión/huellas (no copia completa de filas) en backups/neon-schema-0022-20261119T144109882316Z/before.enc, reporte agregado report.json con transaction=committed/runtime_verified=true. Total resultante47tablas incluidaversión.
+
+Pendiente:push/despliegue backendhead0022 por usuario y luego frontendVercel. No reiniciar imagen viejahead0021 contra esquema0022; actualizar código. Esta operación NO prepara las sesiones sintéticas de actividad/adopción en Neon; usage_data_prepared=false, tablasvacías,marker sincrear. Activarflag por sí solo no preparaelconjunto. Preparación remota requiere procedimiento específico revisado; scripts.prepare_usage_demo es solo local y debe seguir rechazando Neon. Este apartado supera pendientes históricos de migración0022,pero no acredita despliegue.
+
 ## Monitoreo: Neon actualizado hasta0021 — 18nov2026
 
 Autorizado por usuario para comenzar el despliegue conservando Neon. scripts.migrate_neon_0021 (sin flag solo consulta) comprobó0020, TLS verificado y protección de auditoría. Después de36 pruebas aisladas, --apply añadió tabla ops_observations, constraints e índices en una transacción y verificó huellas de43 tablas previas sin cambios. Se conservan30juegos,32cuentas/8adultos/19vínculos,32suscripciones/64cobros y6contenidos. No se copió información local ni se ejecutó seed.

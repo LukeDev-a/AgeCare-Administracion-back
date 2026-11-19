@@ -27,9 +27,15 @@ async def lifespan(app):
     demo_worker = asyncio.create_task(demo_analytics_worker()) if get_settings().commercial_demo_refresh_enabled and get_settings().environment == 'dev' else None
     from app.ops_monitor import ops_monitor_worker
     ops_worker = asyncio.create_task(ops_monitor_worker()) if get_settings().ops_monitor_enabled else None
+    from app.usage_demo import usage_worker
+    usage_task = asyncio.create_task(usage_worker()) if get_settings().usage_demo_refresh_enabled and get_settings().environment == 'dev' else None
     try:
         yield
     finally:
+        if usage_task:
+            usage_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await usage_task
         if ops_worker:
             ops_worker.cancel()
             with suppress(asyncio.CancelledError):

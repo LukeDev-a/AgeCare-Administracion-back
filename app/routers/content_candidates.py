@@ -33,12 +33,15 @@ async def get_candidate(db, candidate_id):
 
 @router.get('/candidates', dependencies=[require('content')])
 async def candidates(db: Db, page: int = Query(1, ge=1), page_size: int = Query(20, ge=1, le=100),
-                     status: str | None = None, q: str | None = Query(None, max_length=120)):
+                     status: str | None = None, q: str | None = Query(None, max_length=120),
+                     has_draft: bool | None = None):
     stmt = select(models.NewsCandidate)
+    if has_draft is not None:
+        stmt = stmt.where(models.NewsCandidate.item_id.is_not(None) if has_draft else models.NewsCandidate.item_id.is_(None))
     if status: stmt = stmt.where(models.NewsCandidate.status == status)
     if q: stmt = stmt.where(models.NewsCandidate.title.ilike(f'%{q}%'))
     total = await db.scalar(select(func.count()).select_from(stmt.subquery()))
-    rows = (await db.scalars(stmt.order_by(models.NewsCandidate.created_at.desc())
+    rows = (await db.scalars(stmt.order_by(models.NewsCandidate.created_at.desc(), models.NewsCandidate.id.desc())
         .offset((page - 1) * page_size).limit(page_size))).all()
     return {'items': [candidate_out(row) for row in rows], 'page': page, 'page_size': page_size, 'total': total}
 

@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     end_users_demo_enabled: bool = False  # solo dev: directorio ficticio, sin sesiones móviles
     commercial_worker_enabled: bool = True  # solo cálculo local; sin proveedores externos
     commercial_demo_refresh_enabled: bool = False  # generación demo explícita, solo dev
+    usage_demo_refresh_enabled: bool = False  # actividad/adopción coherentes hasta 24dic2026
     ops_monitor_enabled: bool = True  # solicitudes naturales y SELECT 1; sin servicios externos
     allows_origins: str
     database_url: str = "postgresql+asyncpg://agecare:agecare@localhost:5432/agecare_admin"

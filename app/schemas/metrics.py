@@ -136,6 +136,7 @@ class RoleSummaryRow(BaseModel):
 
 
 class RolesSummaryOut(BaseModel):
+    data_through: date | None = None
     days: int
     roles: list[RoleSummaryRow]
     computed_at: datetime
@@ -153,6 +154,7 @@ class WeeklyPeriod(BaseModel):
 
 
 class WeeklyActiveOut(BaseModel):
+    data_through: date | None = None
     weeks: list[str]
     series: list[WeeklySeries]
     computed_at: datetime
@@ -177,6 +179,7 @@ class FeatureAdoptionRow(BaseModel):
 
 
 class AdoptionOut(BaseModel):
+    data_through: date | None = None
     days: int
     roles: list[AppRole]
     features: list[FeatureAdoptionRow]
@@ -195,6 +198,7 @@ class TopByRole(BaseModel):
 
 
 class TopOut(BaseModel):
+    data_through: date | None = None
     calculable_only: Literal[True] = True
     top_by_role: list[TopByRole]
     computed_at: datetime
@@ -210,6 +214,7 @@ class AdoptionAlert(BaseModel):
 
 
 class AlertsOut(BaseModel):
+    data_through: date | None = None
     calculable_only: Literal[True] = True
     threshold: float
     alerts: list[AdoptionAlert]

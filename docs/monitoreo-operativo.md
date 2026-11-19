@@ -1,5 +1,13 @@
 # Monitoreo operativo — fase 05
 
+## Límites de Configuración conectados — 19nov2026
+
+Validado con592pruebas API completas y12frontend dirigidas,build/lint correctos. Local reconstruido/health200 y lectura PostgreSQL confirma500ms/2% con361muestras,p9547ms,operational. Sin edición de parámetros/observaciones locales, migración ni despliegue remoto.
+
+Con monitor habilitado, api_core consume ops_thresholds.api_core mediante caché60s, invalidada localmente tras guardar/commit y actualizada por TTL en otros procesos, sin reiniciar. El worker de configuración incluye esta clave. Si falta, aplica los valores iniciales500ms/0,02; valor corrupto o lectura fallida devuelve SETTINGS_UNAVAILABLE y no se afirma salud con una configuración inválida.
+
+La evaluación exige actividad en últimos180s. Si todas esas solicitudes recientes fallan, informa outage; sin actividad reciente conserva estado desconocido. Con alguna correcta, compara el p95 de respuestas correctas de última hora (mínimo20) y la proporción de fallos técnicos de todas las observaciones de esa hora con los máximos configurados. Superar cualquiera causa degraded; igualdad con el límite se acepta. Dentro de ambos límites, operational. Si no hay20correctas, no evalúa latencia y lo explica en note, conservando evaluación por fallos. Los4xx siguen siendo respuestas técnicas correctas. La nota indica límites, ventana y muestras faltantes; overall conserva agregación del peor estado real conocido. No cambia mediciones, tiempos de espera, rendimiento, base de datos, autenticación ni servicios conservados. No genera incidentes/correos automáticamente. Sin migración ni edición de parámetros existentes.
+
 ## Mediciones reales acotadas — 18 de noviembre de 2026
 
 Esta ampliación incorpora un recolector para **API administrativa (`api_core`), autenticación de la consola (`auth`) y base de datos (`database`)**. Sustituye las limitaciones de recolector pendiente descritas en la entrega histórica de abajo. No acredita la salud de la app móvil ni de proveedores externos. La aceptación de la consulta de fase 05 se conserva como antecedente; la ampliación tiene su validación propia.

@@ -56,6 +56,70 @@ async def test_search_paging_literal_filters_and_staff_separation(client, direct
         assert (await db.get(models.AdminUser, admin_id)).is_active
 
 
+async def test_list_roles_summarizes_links_without_inventing_a_global_role(client, directory):
+    factory, headers, _ = directory
+    async with factory() as db:
+        db.add(models.AppMembership(user_id=demo_id('user-1'), patient_id=demo_id('patient-8'), role='family', is_owner=False))
+        await db.commit()
+    result = (await client.get(BASE + '/end-users?page_size=100', headers=headers)).json()
+    user = next(row for row in result['items'] if row['user_id'] == str(demo_id('user-1')))
+    assert user['memberships_count'] == 3
+    assert user['roles'] == ['caregiver', 'family']
+    assert 'role' not in user
+    unlinked = [row for row in result['items'] if row['memberships_count'] == 0]
+    assert unlinked and all(row['roles'] == [] for row in unlinked)
+
+
+async def test_ticket_links_first_request_and_keeps_all_membership_roles(client, directory):
+    _, headers, _ = directory
+    payload = {'subject': 'Necesito ayuda con el audio', 'description': 'No consigo escuchar la noticia.',
+               'user_email': 'ANA.GONZALEZ@gmail.com', 'category': 'other'}
+    response = await client.post(BASE + '/support/tickets', headers=headers, json=payload)
+    assert response.status_code == 201, response.text
+    ticket = response.json()
+    assert ticket['requester']['user_id'] == str(demo_id('user-1'))
+    assert ticket['requester']['name'] == 'Ana González'
+    assert set(ticket['requester']['roles']) == {'family', 'caregiver'}
+    assert ticket['requester']['role'] is None
+    for role in ['family', 'caregiver']:
+        result = (await client.get(BASE + '/support/tickets', headers=headers, params={'role': role})).json()
+        assert ticket['id'] in {row['id'] for row in result['items']}
+    detail = (await client.get(BASE + '/support/tickets/' + ticket['id'], headers=headers)).json()
+    assert detail['requester_context']['roles'] == {'caregiver': True, 'family': True}
+    assert 'plan' not in detail['requester_context']
+
+
+async def test_ticket_history_does_not_replace_directory_and_staff_is_not_app_account(client, directory):
+    _, headers, _ = directory
+    payload = {'subject': 'Solicitud sin vínculo', 'description': 'Ayuda desde llamada telefónica.',
+               'user_email': 'staff@example.cl', 'category': 'other'}
+    for _ in range(2):
+        response = await client.post(BASE + '/support/tickets', headers=headers, json=payload)
+        assert response.status_code == 404
+        created = await client.post(BASE + '/support/tickets', headers=headers,
+            json={**payload, 'confirm_unlinked': True})
+        assert created.status_code == 201
+        assert created.json()['requester']['user_id'] is None
+        assert created.json()['requester']['roles'] == []
+
+
+async def test_ticket_respects_disabled_directory_and_links_account_without_memberships(client, directory, monkeypatch):
+    factory, headers, _ = directory
+    async with factory() as db:
+        account = models.AppAccount(full_name='Solicitante sin vínculos', email='sinvinculos@example.cl', is_active=False)
+        db.add(account)
+        await db.commit()
+        identity = str(account.id)
+    payload = {'subject': 'Ayuda con acceso', 'description': 'Revisar el estado de mi cuenta.',
+               'user_email': 'sinvinculos@example.cl', 'category': 'other'}
+    response = await client.post(BASE + '/support/tickets', headers=headers, json=payload)
+    assert response.status_code == 201
+    assert response.json()['requester']['user_id'] == identity
+    assert response.json()['requester']['roles'] == []
+    monkeypatch.setattr(get_settings(), 'end_users_demo_enabled', False)
+    assert (await client.post(BASE + '/support/tickets', headers=headers, json=payload)).status_code == 404
+
+
 async def test_patient_search_unique_by_linked_email_and_minimal_detail(client, directory):
     factory, headers, _ = directory
     filtered = (await client.get(BASE + '/patients', headers=headers, params={'q': 'ana.gonzalez@gmail.com'})).json()
@@ -64,6 +128,7 @@ async def test_patient_search_unique_by_linked_email_and_minimal_detail(client, 
     assert broad['total'] == 8 and len({r['patient_id'] for r in broad['items']}) == 8
     user = (await client.get(BASE + '/end-users/' + str(demo_id('user-1')), headers=headers)).json()
     assert {m['role'] for m in user['memberships']} == {'family', 'caregiver'}
+    assert user['roles'] == ['caregiver', 'family']
     assert 'role' not in user  # El perfil pertenece a cada vínculo.
     patient = (await client.get(BASE + '/patients/' + str(demo_id('patient-1')), headers=headers)).json()
     assert len(patient['members']) == 4 and {m['role'] for m in patient['members']} == {'family', 'caregiver', 'elder', 'doctor'}

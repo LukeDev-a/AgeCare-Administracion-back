@@ -14,12 +14,12 @@ async def test_support_summary(client, admin_headers):
 
 
 async def test_ticket_flow(client, admin_headers):
-    # crear (correo con histórico en el seed)
+    # Crear sin cuenta del directorio, con confirmación explícita.
     r = await client.post(f"{BASE}/support/tickets", headers=admin_headers,
                           json={"subject": "Prueba de flujo completo",
                                 "description": "Creado por la suite de tests.",
                                 "user_email": "usuario1@demo.cl",
-                                "category": "other", "channel": "phone"})
+                                "category": "other", "channel": "phone", "confirm_unlinked": True})
     assert r.status_code == 201, r.text
     ticket = r.json()
     tid = ticket["id"]

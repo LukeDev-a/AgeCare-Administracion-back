@@ -32,6 +32,8 @@ services:
       ADMIN_END_USERS_DEMO_ENABLED: ${ADMIN_END_USERS_DEMO_ENABLED:-true}
       # Demostración comercial autorizada; no crea datos de origen real.
       ADMIN_COMMERCIAL_DEMO_REFRESH_ENABLED: ${ADMIN_COMMERCIAL_DEMO_REFRESH_ENABLED:-true}
+      # Requiere preparación explícita; solo actividad/adopción, hasta 24dic2026.
+      ADMIN_USAGE_DEMO_REFRESH_ENABLED: ${ADMIN_USAGE_DEMO_REFRESH_ENABLED:-true}
     ports:
       - "8000:8000"
     command: >

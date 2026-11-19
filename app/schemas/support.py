@@ -43,6 +43,7 @@ class Requester(BaseModel):
     name: str
     role: AppRole | None
     email: EmailStr
+    roles: list[AppRole] = Field(default_factory=list)
 
 
 class Assignee(BaseModel):

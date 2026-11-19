@@ -773,3 +773,26 @@ Ref: payment_subscriptions.user_id > app_accounts.id
 Ref: payment_charges.subscription_id > payment_subscriptions.id
 Ref: analytics_activity.account_id > analytics_accounts.id
 Ref: analytics_payments.account_id > analytics_accounts.id
+
+// Actividad/adopción compartidas (0022): identidades analíticas, sin acceso móvil.
+Table analytics_usage_accounts {
+  id uuid [pk, not null]
+  profile varchar(12) [not null]
+  created_at timestamptz [not null]
+  data_origin varchar(12) [not null]
+}
+
+Table analytics_usage_sessions {
+  id uuid [pk, not null]
+  account_id uuid [not null]
+  started_at timestamptz [not null]
+  duration_seconds integer [not null]
+  feature_keys jsonb [not null]
+  data_origin varchar(12) [not null]
+  indexes {
+    account_id
+    started_at
+    (started_at, account_id)
+  }
+}
+Ref: analytics_usage_sessions.account_id > analytics_usage_accounts.id

@@ -170,6 +170,32 @@ async def test_candidate_rights_required_and_manual_draft_preserved(client, admi
     assert (await client.post(f'{BASE}/candidates/{candidate_id}/draft', headers=admin_headers, json={'title': 'Duplicado', 'body': 'Texto duplicado no permitido.'})).status_code == 409
 
 
+async def test_candidates_have_independent_draft_filter_counts_and_pages(client, admin_headers):
+    marker = str(uuid4())
+    content = await create(client, admin_headers)
+    async with database._session_factory() as db:
+        for index in range(4):
+            db.add(models.NewsCandidate(source='cuentamealgobueno', external_id=int(uuid4().int % 1000000000),
+                title=f'{marker} noticia {index}', original_text='Texto de origen conservado.',
+                source_url=f'https://www.cuentamealgobueno.com/{marker}/{index}/', source_hash=uuid4().hex * 2,
+                status='drafted' if index >= 2 else 'pending', item_id=UUID(content['id']) if index >= 2 else None))
+        await db.commit()
+    for has_draft in [False, True]:
+        seen = set()
+        for page in [1, 2]:
+            response = await client.get(BASE + '/candidates', headers=admin_headers,
+                params={'q': marker, 'has_draft': str(has_draft).lower(), 'page_size': 1, 'page': page})
+            assert response.status_code == 200
+            data = response.json()
+            assert data['total'] == 2 and len(data['items']) == 1
+            row = data['items'][0]
+            assert bool(row['item_id']) is has_draft
+            assert row['id'] not in seen
+            seen.add(row['id'])
+    unfiltered = await client.get(BASE + '/candidates', headers=admin_headers, params={'q': marker})
+    assert unfiltered.json()['total'] == 4
+
+
 async def test_quota_failure_keeps_candidate_and_pending_job(client, admin_headers, monkeypatch):
     await isolate_jobs()
     async def no_quota(*args, **kwargs): return None

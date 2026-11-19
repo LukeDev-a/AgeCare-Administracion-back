@@ -21,6 +21,7 @@ from app.enums import COMPONENT_NAMES, ComponentKey, ComponentStatus
 from app.models import OpsObservation, ComponentState, LatencyWindow
 from app.schemas.ops import ComponentOut, LatencyRow
 from app.security import as_utc, now_utc
+from app.runtime_settings import api_thresholds
 
 INTERVAL_SECONDS = 60
 PROBE_TIMEOUT_SECONDS = 3
@@ -214,6 +215,7 @@ async def real_status(db):
     now = now_utc()
     since = now - timedelta(days=30)
     hour = now - timedelta(hours=1)
+    thresholds = await api_thresholds(db)
     history = await observations(db, hour, now)
     bounds = {row.component_key: row for row in (await db.execute(select(
         OpsObservation.component_key, func.min(OpsObservation.observed_at).label('first'),
@@ -253,11 +255,17 @@ async def real_status(db):
         recent = [r for r in rows if as_utc(r.observed_at) >= hour]
         current = [r for r in recent if as_utc(r.observed_at) >= now - timedelta(seconds=STALE_SECONDS)]
         status = None
+        p50, p95 = percentiles(recent)
         if current:
             successes = sum(r.success for r in current)
-            status = (ComponentStatus.operational if successes == len(current) else
-                      ComponentStatus.outage if not successes else ComponentStatus.degraded)
-        p50, p95 = percentiles(recent)
+            if key == ComponentKey.api_core:
+                error_rate = sum(not r.success for r in recent) / len(recent)
+                status = (ComponentStatus.outage if not successes else
+                          ComponentStatus.degraded if error_rate > thresholds['error_rate'] or
+                          (p95 is not None and p95 > thresholds['p95_ms']) else ComponentStatus.operational)
+            else:
+                status = (ComponentStatus.operational if successes == len(current) else
+                          ComponentStatus.outage if not successes else ComponentStatus.degraded)
         uptime = None
         if key == ComponentKey.database:
             seconds, ratio, rate = coverage(database_history, since, now)
@@ -267,6 +275,12 @@ async def real_status(db):
         note = ('Solicitudes reales de la consola; respuestas 4xx no indican una caída. '
                 'El éxito observado no mide disponibilidad temporal.' if key != ComponentKey.database else
                 'SELECT 1 cada 60 s con el proceso activo; pausas sin cobertura, sin relleno de historial.')
+        if key == ComponentKey.api_core:
+            note += (f" Límites de Configuración sobre la última hora: p95 hasta {thresholds['p95_ms']} ms "
+                     f"y errores hasta {thresholds['error_rate'] * 100:g} %. "
+                     'Sin respuestas correctas recientes se informa caída; sin muestras recientes, estado desconocido. ')
+            if p95 is None:
+                note += f'La evaluación de latencia requiere {MINIMUM_SAMPLES} respuestas correctas; todavía no hay suficientes.'
         components.append(ComponentOut(key=key, name=REAL_NAMES[key.value], status=status,
             uptime_30d=uptime, latency_p50_ms=p50, latency_p95_ms=p95, note=note,
             checked_at=details['last_observed_at'], data_origin='real', measurement_kind='service', **details))

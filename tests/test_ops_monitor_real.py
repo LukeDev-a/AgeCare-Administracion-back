@@ -15,7 +15,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app import models, ops_monitor as monitor
+from app import models, ops_monitor as monitor, runtime_settings
 from app.config import get_settings
 from app.database import Base, get_db
 from app.main import app
@@ -31,6 +31,10 @@ async def isolated(monkeypatch):
         await conn.run_sync(Base.metadata.create_all)
     factory = async_sessionmaker(engine, expire_on_commit=False)
     monkeypatch.setattr(monitor, 'get_session_factory', lambda: factory)
+    from app.routers import system
+    settings_cache = runtime_settings.SettingsCache()
+    monkeypatch.setattr(runtime_settings, 'cache', settings_cache)
+    monkeypatch.setattr(system, 'cache', settings_cache)
     monitor.pending.clear()
     yield factory
     monitor.pending.clear()
@@ -40,6 +44,81 @@ async def isolated(monkeypatch):
 def row(key='api_core', age=0, success=True, duration=10, at=None):
     return models.OpsObservation(component_key=key, observed_at=at or now_utc() - timedelta(seconds=age),
         duration_ms=duration, success=success, source='database_probe' if key == 'database' else 'http_requests')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('limit,rate,duration,good,bad,expected', [
+    (500, .02, 600, 20, 0, 'degraded'),
+    (600, .02, 600, 20, 0, 'operational'),
+    (500, .02, 100, 49, 1, 'operational'),
+    (500, .02, 100, 48, 1, 'degraded'),
+    (500, 0, 100, 49, 1, 'degraded'),
+    (500, 1, 100, 0, 1, 'outage'),
+])
+async def test_api_evaluates_configured_limits_and_inclusive_boundaries(isolated, limit, rate, duration, good, bad, expected):
+    async with isolated() as db:
+        db.add(models.SystemSetting(key='ops_thresholds.api_core', description='API', value_schema={},
+            value={'p95_ms': limit, 'error_rate': rate}))
+        db.add_all([row(duration=duration) for _ in range(good)] + [row(success=False) for _ in range(bad)])
+        await db.commit()
+        state = next(r for r in await monitor.real_status(db) if r.key == 'api_core')
+        assert state.status == expected
+        assert 'Límites de Configuración' in state.note
+
+
+@pytest.mark.asyncio
+async def test_api_limits_refresh_at_ttl_without_affecting_other_services_or_stale_status(isolated, monkeypatch):
+    clock = [0]
+    instance = runtime_settings.SettingsCache(lambda: clock[0])
+    monkeypatch.setattr(runtime_settings, 'cache', instance)
+    async with isolated() as db:
+        setting = models.SystemSetting(key='ops_thresholds.api_core', description='API', value_schema={},
+            value={'p95_ms': 500, 'error_rate': .02})
+        db.add(setting)
+        db.add_all([row(key, duration=600) for key in monitor.REAL_KEYS for _ in range(20)])
+        await db.commit()
+        before = {r.key: r for r in await monitor.real_status(db)}
+        assert before['api_core'].status == 'degraded'
+        assert before['database'].status == before['auth'].status == 'operational'
+        setting.value = {'p95_ms': 700, 'error_rate': .02}
+        setting.version += 1
+        await db.commit()
+        assert next(r for r in await monitor.real_status(db) if r.key == 'api_core').status == 'degraded'
+        clock[0] = 60
+        after = next(r for r in await monitor.real_status(db) if r.key == 'api_core')
+        assert after.status == 'operational' and after.latency_p95_ms == before['api_core'].latency_p95_ms
+        assert len((await db.scalars(select(models.OpsObservation))).all()) == 60
+        future = now_utc() + timedelta(minutes=5)
+        monkeypatch.setattr(monitor, 'now_utc', lambda: future)
+        stale = next(r for r in await monitor.real_status(db) if r.key == 'api_core')
+        assert stale.status is None and stale.freshness == 'stale'
+
+
+@pytest.mark.asyncio
+async def test_saving_api_limits_commits_audit_and_invalidates_monitor_cache(isolated):
+    from app.routers import system
+    from app.schemas.system import SettingPutIn
+    from starlette.requests import Request
+    async with isolated() as db:
+        admin = models.AdminUser(full_name='Responsable', email='threshold@example.invalid', role='admin')
+        db.add(admin)
+        db.add(models.SystemSetting(key='ops_thresholds.api_core', description='API',
+            value_schema={'type': 'object', 'properties': {'p95_ms': {'type': 'integer', 'minimum': 50},
+                'error_rate': {'type': 'number', 'minimum': 0, 'maximum': 1}},
+                'required': ['p95_ms', 'error_rate'], 'additionalProperties': False},
+            value={'p95_ms': 500, 'error_rate': .02}))
+        db.add_all([row(duration=600) for _ in range(20)])
+        await db.commit()
+        assert next(r for r in await monitor.real_status(db) if r.key == 'api_core').status == 'degraded'
+        saved = await system.put_setting('ops_thresholds.api_core',
+            SettingPutIn(value={'p95_ms': 700, 'error_rate': .02}, version=1, change_note='Ajuste comprobado del límite de latencia'),
+            Request({'type': 'http', 'method': 'PUT', 'path': '/api/v1/admin/settings/ops_thresholds.api_core',
+                'headers': [], 'state': {'actor': admin}}), db, admin)
+        assert saved.version == 2
+        assert next(r for r in await monitor.real_status(db) if r.key == 'api_core').status == 'operational'
+        event = await db.scalar(select(models.AuditLog).where(models.AuditLog.action == 'settings.update'))
+        assert event.actor_id == admin.id
+        assert event.before['value']['p95_ms'] == 500 and event.after['value']['p95_ms'] == 700
 
 
 @pytest.mark.asyncio
